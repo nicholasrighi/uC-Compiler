@@ -5,7 +5,7 @@
 /* regular definitions */
 delim   [ \t\n]
 ws      {delim}+
-letter  [A-Za-z]
+letter  [A-Za-z_]
 digit   [0-9]
 number  [0-9]+
 id      {letter}({letter}|{digit})*
@@ -26,19 +26,19 @@ while     {return WHILE;}
 return    {return RET;}
 
     /* operators */
-"!="      {return OP_NOT_EQUAL;}
-"!"       {return OP_INVERT;}
-"&&"      {return OP_LOG_AND;}
-"*"       {return OP_MULT;}
-"+"       {return OP_ADD;}
-"-"       {return OP_MINUS;}
-"/"       {return OP_DIVIDE;}
-"<="      {return OP_LESS_EQUAL;}
-"<"       {return OP_LESS_THAN;}
-"=="      {return OP_EQUAL;}
-"="       {return OP_ASSIGN;}
-">="      {return OP_GREATER_EQUAL;}
-">"       {return OP_GREATER_THAN;}
+"!"       {yylval.unop_dec = new Unop_dec(yytext); return OP_INVERT;}
+"!="      {yylval.binop_dec = new Binop_dec(yytext);return OP_NOT_EQUAL;}
+"&&"      {yylval.binop_dec = new Binop_dec(yytext);return OP_LOG_AND;}
+"*"       {yylval.binop_dec = new Binop_dec(yytext);return OP_MULT;}
+"+"       {yylval.binop_dec = new Binop_dec(yytext);return OP_ADD;}
+"-"       {yylval.binop_dec = new Binop_dec(yytext);return OP_MINUS;}
+"/"       {yylval.binop_dec = new Binop_dec(yytext);return OP_DIVIDE;}
+"<="      {yylval.binop_dec = new Binop_dec(yytext);return OP_LESS_EQUAL;}
+"<"       {yylval.binop_dec = new Binop_dec(yytext);return OP_LESS_THAN;}
+"=="      {yylval.binop_dec = new Binop_dec(yytext);return OP_EQUAL;}
+"="       {yylval.binop_dec = new Binop_dec(yytext);return OP_ASSIGN;}
+">="      {yylval.binop_dec = new Binop_dec(yytext);return OP_GREATER_EQUAL;}
+">"       {yylval.binop_dec = new Binop_dec(yytext);return OP_GREATER_THAN;}
 
     /* misc symbols */
 "("       {return LEFT_PAREN;}
@@ -49,8 +49,8 @@ return    {return RET;}
 "}"       {return RIGHT_CURLY;}
 ";"       {return SEMICOLON;}
 ","       {return COMMA;}
-{id}      {return ID;}
-{number}  {return NUMBER;}
-
+{id}      {yylval.variable_ref = new Var_ref(yytext); return ID;}
+{number}  {yylval.value = atoi(yytext); return NUMBER;}
+                
 %%
 
