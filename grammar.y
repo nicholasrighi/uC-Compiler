@@ -8,6 +8,8 @@
   #include "AST_classes/Number.h"
   #include "AST_classes/Var_dec.h"
   #include "AST_classes/Array_dec.h"
+  #include "AST_classes/Array_access.h"
+  #include "AST_classes/Array_ref.h"
   #include "AST_classes/Func_dec.h"
   #include "AST_classes/Func_ref.h"
   #include "AST_classes/Return_dec.h"
@@ -17,7 +19,6 @@
   #include "AST_classes/Var_ref.h"
   #include "AST_classes/Binop_dec.h"
   #include "AST_classes/Unop_dec.h"
-  #include "AST_classes/Array_access.h"
 
   // Visitor nodes
   #include "Visitor_classes/Print_AST_visitor.h"
@@ -166,7 +167,8 @@ formal_list     : formaldec                  {
                 ;
 
 formaldec       : scalardec                  {$$ = $1;}
-                | typename ID "[" "]"        {$$ = new Array_dec($2, $1, -1);}
+
+                | typename ID "[" "]"        {$$ = new Array_ref($2, $1);}
                 ;
 
 locals          : vardec ";" locals           {
@@ -265,7 +267,10 @@ actuals         : expr_list {$$ = $1;}
                 | %empty    {$$ = nullptr;}
                 ;
 
-expr_list       : expr                 {$$->add_expression_back($1);}
+expr_list       : expr                 {  
+                                        $$ = new Stmt_dec;
+                                        $$->add_expression_back($1);
+                                       }
 
                 | expr "," expr_list   {
                                         $$ = $3;

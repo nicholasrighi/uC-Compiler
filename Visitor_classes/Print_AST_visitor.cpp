@@ -126,9 +126,15 @@ void Print_AST_visitor::dispatch(Func_ref &node)
 {
   add_indent_level();
 
-  std::cout << "calling function " << node.m_var->m_name << " with args" << std::endl;
+  std::cout << "calling function " << node.m_var->m_name << " with args:" << std::endl;
 
-  node.m_args->accept(*this);
+  if (node.m_args == nullptr) {
+    add_indent_level();
+    std::cout << "no args" << std::endl;
+    remove_indent_level();
+  } else {
+    node.m_args->accept(*this);
+  }
 
   remove_indent_level();
 }

@@ -7,5 +7,7 @@ int general_kenobi(void) {
 }
 
 int main(void) {
-  return 3;
+  int y;
+  y = general_kenobi();
+  return y;
 }
