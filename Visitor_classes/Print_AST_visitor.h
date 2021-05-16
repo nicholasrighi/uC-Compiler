@@ -3,6 +3,7 @@
 // inherits from
 #include "Abstract_visitor.h"
 
+// system includes
 #include <iostream>
 
 class Print_AST_visitor : public Abstract_visitor
@@ -10,7 +11,6 @@ class Print_AST_visitor : public Abstract_visitor
 public:
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec& node) override;
-  void dispatch(Array_ref& node) override;
   void dispatch(Binop_dec& node) override;
   void dispatch(Func_dec& node) override;
   void dispatch(Func_ref& node) override;

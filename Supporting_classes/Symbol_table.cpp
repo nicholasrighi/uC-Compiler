@@ -1,35 +1,48 @@
-#include <iostream>
+// Implements
 #include "Symbol_table.h"
 
-bool Symbol_table::add_var(std::string name, Var_dec* variable)
+// System includes
+#include <iostream>
+
+bool Symbol_table::add_var(std::string name, Var_dec *variable)
 {
   {
-    // redefining a variable isn't allowed, so we need to check if it's already in the
-    // table before we add it. Return an error if the variable is already in the table
-    if (sym_table.count(name) >= 1)
+    /*
+      Adds a variable to the top level of the symbol table if the variable isn't already 
+      declared at the top level. Returns false is the variable is already declared in the 
+      top level of the symbol table, otherwise returns true
+    */
+    if (chained_sym_table.front()->count(name) >= 1)
     {
       return false;
     }
-    sym_table.insert({name, variable});
+    chained_sym_table.front()->insert({name, variable});
     return true;
   }
 }
 
-std::optional<Var_dec*> Symbol_table::get_var_dec(std::string name)
+std::optional<Var_dec *> Symbol_table::get_var_dec(std::string name)
 {
-  // return false if the variable we're searching for isn't in the symbol table.
-  if (sym_table.count(name) != 1)
+  /* iterate through all tables, starting at the most nested scope (ie. front of the table) */
+  for (auto &table : chained_sym_table)
   {
-    return std::nullopt;
+    /* if we find the variable we're looking for, return it */
+    if (table->count(name) == 1)
+    {
+      return {table->at(name)};
+    }
   }
-  // otherwise return the variable we're looking for 
-  return {sym_table.at(name)};
+  /* if we exit the loop, variable isn't in table, return false in optional */
+  return std::nullopt;
 }
 
 void Symbol_table::print_sym_table()
 {
-  for (auto &symbols : sym_table)
+  for (auto &tables : chained_sym_table)
   {
-    std::cout << "Variable " << symbols.first << " is defined" << std::endl;
+    for (auto &symbols : *tables)
+    {
+      std::cout << "Variable " << symbols.first << " is defined" << std::endl;
+    }
   }
 }

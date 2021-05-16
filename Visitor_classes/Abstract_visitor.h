@@ -19,7 +19,6 @@ class Abstract_visitor {
   public:
     virtual void dispatch(Array_access& node) = 0;
     virtual void dispatch(Array_dec& node) = 0;
-    virtual void dispatch(Array_ref& node) = 0;
     virtual void dispatch(Binop_dec& node) = 0;
     virtual void dispatch(Func_dec& node) = 0;
     virtual void dispatch(Func_ref& node) = 0;

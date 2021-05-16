@@ -9,7 +9,6 @@
   #include "AST_classes/Var_dec.h"
   #include "AST_classes/Array_dec.h"
   #include "AST_classes/Array_access.h"
-  #include "AST_classes/Array_ref.h"
   #include "AST_classes/Func_dec.h"
   #include "AST_classes/Func_ref.h"
   #include "AST_classes/Return_dec.h"
@@ -22,6 +21,7 @@
 
   // Visitor nodes
   #include "Visitor_classes/Print_AST_visitor.h"
+  #include "Visitor_classes/Dec_before_use.h"
 
   extern "C" int yylex();
 
@@ -35,15 +35,15 @@
 
 %union {
     Base_node* abstract_ptr;
-    Var_type    variable_type;   // these are used when a variable type is being defined (only used for the typename token)
-    Var_ref*    variable_ref;   // these are used for naming a variable (if you need to represent x as an input to f(x))
-    Var_dec*    variable_dec;   // these are used when defining an int or a char (int x;)
-    Array_dec*  array_dec;      // these are used when defining an array (int x[3];)
-    Func_dec*   function_dec;   // these are used when defining a function (void x())
-    Stmt_dec*   stmt_dec;       // these are used when defining a list of exp* (or some subclass of exp*)
-    Binop_dec*  binop_dec;      // these are used for defining a binary operation (*,+,-, etc)
-    Unop_dec*   unop_dec;       // these are used for defining a uniary operation (!, -)
-    int         value;          // these are used when defining a constant (return 3 * 4)
+    Ret_type    variable_type;  // used when a variable type is being defined (only used for the typename token)
+    Var_ref*    variable_ref;   // used for naming a variable (if you need to represent x as an input to f(x))
+    Var_dec*    variable_dec;   // used when defining an int or a char (int x;)
+    Array_dec*  array_dec;      // used when defining an array (int x[3];)
+    Func_dec*   function_dec;   // used when defining a function (void x())
+    Stmt_dec*   stmt_dec;       // used when defining a list of exp* (or some subclass of exp*)
+    Binop_dec*  binop_dec;      // used for defining a binary operation (*,+,-, etc)
+    Unop_dec*   unop_dec;       // used for defining a uniary operation (!, -)
+    int         value;          // used when defining a constant (return 3 * 4)
 }
 
 %type <abstract_ptr>  expr condition
@@ -133,15 +133,15 @@ vardec          : scalardec {$$ = $1;}
                 | arraydec  {$$ = $1;}
                 ;
 
-scalardec       : typename ID {$$ = new Var_dec($2, $1);}
+scalardec       : typename ID {$$ = new Var_dec($2, $1, Object_type::SCALAR);}
                 ;
 
 arraydec        : typename ID "[" NUMBER "]" {$$ = new Array_dec($2, $1, $4);}
                 ;
 
-typename        : "int"     {$$ = Var_type::INT;}   
-                | "char"    {$$ = Var_type::CHAR;}
-                | "void"    {$$ = Var_type::VOID;}
+typename        : "int"     {$$ = Ret_type::INT;}   
+                | "char"    {$$ = Ret_type::CHAR;}
+                | "void"    {$$ = Ret_type::VOID;}
                 ;
 
 funbody         : "{" locals stmts "}" {
@@ -160,6 +160,7 @@ formal_list     : formaldec                  {
                                               $$ = new Stmt_dec;
                                               $$->add_expression_back($1);
                                              }
+
                 | formaldec "," formal_list  {
                                               $$ = $3;
                                               $$->add_expression_front($1);
@@ -168,7 +169,7 @@ formal_list     : formaldec                  {
 
 formaldec       : scalardec                  {$$ = $1;}
 
-                | typename ID "[" "]"        {$$ = new Array_ref($2, $1);}
+                | typename ID "[" "]"        {$$ = new Array_dec($2, $1, -1);}
                 ;
 
 locals          : vardec ";" locals           {
@@ -211,7 +212,10 @@ stmt            : expr ";"                      {
                                                  $$->add_expression_back(new If_dec($2, $3, $4));
                                                 }
 
-                | "{" stmts "}"                 {$$ = $2;}
+                | "{" stmts "}"                 {
+                                                 $$ = $2;
+                                                 $$->m_new_scope = true;
+                                                }
 
                 | ";"                           {$$ = nullptr;}
                 ;
@@ -297,6 +301,8 @@ int main(int argc, char** argv) {
 
     yyparse();
 
-    Print_AST_visitor print_visitor;
-    root->accept(print_visitor);
+    //Print_AST_visitor print_visitor;
+    Dec_before_use dec_visitor;
+    //root->accept(print_visitor);
+    root->accept(dec_visitor);
 }

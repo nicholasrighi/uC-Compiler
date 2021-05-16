@@ -1,18 +1,24 @@
 #pragma once
 
-#include <list>
+// Inherits from
 #include "Base_node.h"
-#include "../Visitor_classes/Abstract_visitor.h"
+
+// System includes
+#include <list>
 
 class Stmt_dec : public Base_node
 {
 public:
-  void add_expression_back(Base_node* exp) { m_sub_expressions.push_back(exp); }
-  void add_expression_front(Base_node* exp) { m_sub_expressions.push_front(exp); }
+  Stmt_dec() : m_new_scope(false) {}
 
-  void accept(Abstract_visitor& visitor) override {
+  void add_expression_back(Base_node *exp) { m_sub_expressions.push_back(exp); }
+  void add_expression_front(Base_node *exp) { m_sub_expressions.push_front(exp); }
+
+  void accept(Abstract_visitor &visitor) override
+  {
     visitor.dispatch(*this);
   }
 
-  std::list<Base_node*> m_sub_expressions;
+  std::list<Base_node *> m_sub_expressions;
+  bool m_new_scope;
 };

@@ -7,7 +7,6 @@
 // AST nodes
 #include "../AST_classes/Array_access.h"
 #include "../AST_classes/Array_dec.h"
-#include "../AST_classes/Array_ref.h"
 #include "../AST_classes/Binop_dec.h"
 #include "../AST_classes/Func_dec.h"
 #include "../AST_classes/Func_ref.h"
@@ -63,15 +62,6 @@ void Print_AST_visitor::dispatch(Array_dec &node)
   add_indent_level();
 
   std::cout << "Declared array " << node.get_name() << " of size " << node.m_array_size << std::endl;
-
-  remove_indent_level();
-}
-
-void Print_AST_visitor::dispatch(Array_ref &node)
-{
-  add_indent_level();
-
-  std::cout << "Referencing array " << node.m_var->m_name << std::endl;
 
   remove_indent_level();
 }
