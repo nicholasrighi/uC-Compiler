@@ -68,4 +68,6 @@ int main(int argc, char **argv)
   if (!dec_visitor.parse_status()) {
     exit(1);
   }
+
+  /* Now check that types are used correctly */
 }

@@ -94,7 +94,7 @@ void Dec_before_use::dispatch(Func_dec &node)
 void Dec_before_use::dispatch(Func_ref &node)
 {
     /* check that the function is already declared */
-    
+
     if (!sym_table.get_var_dec(node.m_var->m_name))
     {
         std::cout << "Undeclared function " << node.m_var->m_name << " used " << std::endl;
@@ -103,18 +103,31 @@ void Dec_before_use::dispatch(Func_ref &node)
 }
 
 /*
-    Check condition and body for variable declerations and references
+    Check condition and body for variable declerations and references. Add level to symbol table
+    for new scope inside of If statement
 */
 void Dec_before_use::dispatch(If_dec &node)
 {
+    /* condition is part of current scope, check for variables in current scope */
     node.m_cond->accept(*this);
-    node.m_stmt_if_true->accept(*this);
+
+    /* add a level to the symbol table for the inside of the if statement */
+    sym_table.add_level();
+
+    /* check that the body of the if statement isn't null and examine the body */
+    if (node.m_stmt_if_true != nullptr)
+    {
+        node.m_stmt_if_true->accept(*this);
+    }
 
     /* not always an 'else' part, need to check if there is one before calling it */
-    if (node.m_stmt_if_false == nullptr)
+    if (node.m_stmt_if_false != nullptr)
     {
         node.m_stmt_if_false->accept(*this);
     }
+
+    /* remove the inner most scope from the symbol table as we leave the if statment */
+    sym_table.remove_level();
 }
 
 /*
@@ -183,10 +196,20 @@ void Dec_before_use::dispatch(Var_ref &node)
 }
 
 /*
-    Check that the condition and body of the while loop are only using declared variables
+    Check that the condition and body of the while loop are only using declared variables. Add new level to symbol
+    table for scope inside while loop
 */
 void Dec_before_use::dispatch(While_dec &node)
 {
+    /* the condition uses the current scope, so don't add a level to the symbol table*/
     node.m_cond->accept(*this);
-    node.m_body->accept(*this);
+
+    /* the body of the while loop is a new scope, so we add a level to the symbol table */
+    sym_table.add_level();
+
+    /* check that loop body exists, and then type check the body */
+    if (node.m_body != nullptr)
+    {
+        node.m_body->accept(*this);
+    }
 }

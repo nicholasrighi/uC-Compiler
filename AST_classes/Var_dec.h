@@ -17,17 +17,7 @@ public:
 
   std::string get_type_string()
   {
-    switch (m_var_type)
-    {
-    case Ret_type::INT:
-      return "INT";
-    case Ret_type::CHAR:
-      return "CHAR";
-    case Ret_type::VOID:
-      return "VOID";
-    default:
-      return "ERROR";
-    }
+    return type_to_string(m_var_type);
   }
 
   /* holds var name*/
