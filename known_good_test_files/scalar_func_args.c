@@ -1,5 +1,7 @@
-int x(int a) {
-  return 1;
+int y;
+
+int x(int y, int b) {
+  int y;
 }
 
 int main(void) {

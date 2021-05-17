@@ -46,3 +46,13 @@ void Symbol_table::print_sym_table()
     }
   }
 }
+
+
+void Symbol_table::add_level() {
+  chained_sym_table.push_front(new std::unordered_map<std::string, Var_dec*>);
+}
+
+void Symbol_table::remove_level() {
+  delete(chained_sym_table.front());
+  chained_sym_table.pop_front();
+}

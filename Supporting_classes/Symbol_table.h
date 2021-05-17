@@ -37,6 +37,10 @@ public:
   */
   std::optional<Var_dec *> get_var_dec(std::string name);
 
+
+  /* prints all symbols defined in the symbol table. Used for debugging only */
+  void print_sym_table();
+
   /* 
      adds a level to the symbol table. If a variable is declared in multiple levels, the 
      variable in the highest level is returned when add_var() is called
@@ -47,9 +51,6 @@ public:
      Removes a level from the symbol table.
   */
   void remove_level();
-
-  /* prints all symbols defined in the symbol table. Used for debugging only */
-  void print_sym_table();
 
   /*
     List of pointers to maps of <string, var dec>. The front of the list is the most nested
