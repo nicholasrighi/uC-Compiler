@@ -28,7 +28,8 @@ void Dec_before_use::dispatch(Array_access &node)
     /* check that the variable has been declared*/
     if (!sym_table.get_var_dec(node.m_var->m_name))
     {
-        std::cout << "Unitiliazed array '" << node.m_var->m_name << "'" << std::endl;
+        std::cout << "Undeclared array '" << node.m_var->m_name << "'" << std::endl;
+        m_parse_flag = false;
     }
 }
 
@@ -40,6 +41,7 @@ void Dec_before_use::dispatch(Array_dec &node)
     if (!sym_table.add_var(node.get_name(), &node))
     {
         std::cout << "Redeclared variable " << node.get_name() << std::endl;
+        m_parse_flag = false;
     }
 }
 
@@ -64,6 +66,7 @@ void Dec_before_use::dispatch(Func_dec &node)
     if (!sym_table.add_var(node.get_name(), &node))
     {
         std::cout << "Error, variable with name '" << node.get_name() << "' already declared" << std::endl;
+        m_parse_flag = false;
     }
 
     /* now add chain new symbol table for local function scope */
@@ -95,6 +98,7 @@ void Dec_before_use::dispatch(Func_ref &node)
     if (!sym_table.get_var_dec(node.m_var->m_name))
     {
         std::cout << "Undeclared function " << node.m_var->m_name << " used " << std::endl;
+        m_parse_flag = false;
     }
 }
 
@@ -159,6 +163,7 @@ void Dec_before_use::dispatch(Var_dec &node)
     if (!sym_table.add_var(node.get_name(), &node))
     {
         std::cout << "Redeclared variable " << node.get_name() << std::endl;
+        m_parse_flag = false;
     }
 }
 
@@ -172,7 +177,8 @@ void Dec_before_use::dispatch(Var_ref &node)
     /* check that the variable has been declared*/
     if (!sym_table.get_var_dec(node.m_name))
     {
-        std::cout << "Unitiliazed variable " << node.m_name << std::endl;
+        std::cout << "Undeclared variable " << node.m_name << std::endl;
+        m_parse_flag = false;
     }
 }
 

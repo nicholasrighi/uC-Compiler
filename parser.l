@@ -1,18 +1,23 @@
 %{
+    /* needed to make sure g++ doesn't managle yylex() */
+    extern "C" int yylex();
     #include "grammar.tab.h"
+
+    int line_number = 1;
 %}
 
 /* regular definitions */
-delim   [ \t\n]
-ws      {delim}+
+delim   [ \t]
 letter  [A-Za-z_]
 digit   [0-9]
 number  [0-9]+
 id      {letter}({letter}|{digit})*
 
 %%
+
     /* whitespace */
-{ws}      {/* do nothing with whitespace */}
+{delim}   {/*do nothing*/}
+\n        {line_number++;}
 
     /* variable types */
 int       {return TYPE_INT;}

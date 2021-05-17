@@ -1,10 +1,9 @@
-%code requires{
-  
-  // system references
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <unistd.h>
-
+/* 
+    Code requires goes near the top of the *.tab.c file, above the %union decleration. The AST header
+    files define the types the union uses, so we need these header files to appear before the 
+    %union decleration. Also makes the headers avaliable to the flex scanner
+*/
+%code requires {
   // AST classes
   #include "AST_classes/Number.h"
   #include "AST_classes/Var_dec.h"
@@ -19,19 +18,6 @@
   #include "AST_classes/Var_ref.h"
   #include "AST_classes/Binop_dec.h"
   #include "AST_classes/Unop_dec.h"
-
-  // Visitor nodes
-  #include "Visitor_classes/Print_AST_visitor.h"
-  #include "Visitor_classes/Dec_before_use.h"
-
-  extern "C" int yylex();
-
-  void yyerror(char* s) {
-    printf("error occured, %s\n", s);
-    exit(1);
-  }
-
-  Stmt_dec* root;
 }
 
 %union {
@@ -45,6 +31,28 @@
     Binop_dec*  binop_dec;      // used for defining a binary operation (*,+,-, etc)
     Unop_dec*   unop_dec;       // used for defining a uniary operation (!, -)
     int         value;          // used when defining a constant (return 3 * 4)
+}
+
+/*
+    The code decleration only appears in the *.tab.c file, so we define parser implementation only details here
+*/
+%code {
+
+  /* system references */
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  /* needed by yyparse */
+  extern "C" int yylex();
+
+  /* the line number currently being processed */ 
+  extern int line_number;
+
+  /* needed by bison to report errors */
+  void yyerror(char* s);
+
+  /* the root of the AST */
+  Stmt_dec* root;
 }
 
 %type <abstract_ptr>  expr condition
@@ -62,6 +70,7 @@
 %token WHILE  "while"
 %token RET    "return"
 
+// type declerations
 %token TYPE_INT   "int"
 %token TYPE_CHAR  "char"
 %token TYPE_VOID  "void"
@@ -285,48 +294,7 @@ expr_list       : expr                 {
 
 %%
 
-#include "lex.yy.c"
-
-int main(int argc, char** argv) {
-
-    /* check that user has given us a file to parse */
-    if (argc < 2) {
-      printf("error, please supply a file to compile\n");
-      return -1;
-    }
-
-    /* check that the user's file is valid */
-     yyin = fopen(argv[1], "r");
-     if (!yyin) {
-       printf("error, invalid file name\n");
-       return -1;
-     }
-
-    int c;
-    bool print_AST = false;
-
-    /* set command line flags */
-    while ((c = getopt(argc, argv, "d")) != -1) {
-      switch(c) {
-        case 'd':
-          print_AST = true;
-          break;
-        case '?':
-          printf("invalid command line option %c \n", c);
-          break;
-      }
-    }
-
-    yyparse();
-
-    Print_AST_visitor print_visitor;
-    Dec_before_use dec_visitor;
-
-    /* print AST if user has specified */
-    if (print_AST) { 
-      root->accept(print_visitor);
-    }
-
-    /* check variables are declared before they're used */
-    root->accept(dec_visitor);
+void yyerror(char* s) {
+  printf("Error on line %d, %s\n", line_number, s);
+  exit(1);
 }
