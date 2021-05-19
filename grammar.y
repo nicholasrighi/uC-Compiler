@@ -1,7 +1,7 @@
 /* 
-    Code requires goes near the top of the *.tab.c file, above the %union decleration. The AST header
+    Code requires goes near the top of the *.tab.h file, above the %union decleration. The AST header
     files define the types the union uses, so we need these header files to appear before the 
-    %union decleration. Also makes the headers avaliable to the flex scanner
+    %union decleration. Also makes the headers avaliable to the flex scanner.
 */
 %code requires {
   // AST classes
@@ -57,8 +57,8 @@
 
 %type <abstract_ptr>  expr condition
 %type <stmt_dec>      expr_list actuals stmt stmts else_part program 
-                      topdec topdec_list formals funbody locals formal_list
-%type <variable_dec>  vardec scalardec formaldec
+                      topdec_list formals funbody locals formal_list
+%type <variable_dec>  topdec vardec scalardec formaldec
 %type <array_dec>     arraydec
 %type <variable_type> typename
 %type <unop_dec>      unop 
@@ -128,15 +128,9 @@ topdec_list     : topdec topdec_list  {
                 | %empty              {$$ = new Stmt_dec;}
                 ;
 
-topdec          : vardec ";"          {
-                                       $$ = new Stmt_dec;
-                                       $$->add_expression_back($1);
-                                      }
+topdec          : vardec ";"          {$$ = $1;}
 
-                | typename ID "(" formals ")" funbody {
-                                                       $$ = new Stmt_dec;
-                                                       $$->add_expression_back(new Func_dec($2, $1, $4, $6));
-                                                      }
+                | typename ID "(" formals ")" funbody {$$ = new Func_dec($2, $1, $4, $6);}
                 ;
 
 vardec          : scalardec {$$ = $1;}
@@ -224,6 +218,8 @@ stmt            : expr ";"                      {
 
                 | "{" stmts "}"                 {
                                                  $$ = $2;
+                                                 //TODO. decide if this is necessary. Can't declare variables inside a stmt, do 
+                                                 // this doesn't really do anything 
                                                  $$->m_new_scope = true;
                                                 }
 

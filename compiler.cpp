@@ -1,11 +1,12 @@
-// System includes
+/* System includes */
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
-// Parser header
+/* Parser header */
 #include "grammar.tab.h"
 
-// Visitor declerations
+/* Visitor declerations */
 #include "Visitor_classes/Print_AST_visitor.h"
 #include "Visitor_classes/Dec_before_use.h"
 
@@ -13,34 +14,31 @@
 extern FILE *yyin;
 extern Stmt_dec *root;
 
+/* 
+    produces an object file for the specified file, has the following option flags
+
+    -f <filename>:    required to run the program, produces object file for <filename>
+    
+    -d:               print the AST after parsing the input file
+*/
 int main(int argc, char **argv)
 {
 
-  /* check that user has given us a file to parse */
-  if (argc < 2)
-  {
-    printf("error, please supply a file to compile\n");
-    return -1;
-  }
-
-  /* check that the user's file is valid */
-  yyin = fopen(argv[1], "r");
-  if (!yyin)
-  {
-    printf("error, invalid file name\n");
-    return -1;
-  }
-
   int c;
   bool print_AST = false;
+  bool file_specified = false;
+  char *file_name;
 
-  /* set command line flags */
-  while ((c = getopt(argc, argv, "d")) != -1)
+  while ((c = getopt(argc, argv, "df:")) != -1)
   {
     switch (c)
     {
     case 'd':
       print_AST = true;
+      break;
+    case 'f':
+      file_specified = true;
+      file_name = strdup(optarg);
       break;
     case '?':
       printf("invalid command line option %c \n", c);
@@ -48,8 +46,20 @@ int main(int argc, char **argv)
     }
   }
 
+  /* check that the user's file is valid */
+  yyin = fopen(file_name, "r");
+  if (!yyin)
+  {
+    printf("error, invalid file name\n");
+    return -1;
+  }
+
   /* construct AST */
   yyparse();
+
+  /* close file and free file name pointer after it's been parsed */
+  free(file_name);
+  fclose(yyin);
 
   /* declare our visitors */
   Print_AST_visitor print_visitor;
@@ -61,13 +71,13 @@ int main(int argc, char **argv)
     root->accept(print_visitor);
   }
 
-  /* check variables are declared before they're used */
+  /* check variables are declared before they're used, and that no type mismatches exist  */
   root->accept(dec_visitor);
 
   /* Exit program with error if parse was uncessesful */
-  if (!dec_visitor.parse_status()) {
+  if (!dec_visitor.parse_status())
+  {
+    std::cout << "Error while parsing, exiting" << std::endl;
     exit(1);
   }
-
-  /* Now check that types are used correctly */
 }

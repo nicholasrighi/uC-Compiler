@@ -5,6 +5,7 @@
 
 // local files
 #include "../Supporting_classes/Symbol_table.h"
+#include "Type_checker.h"
 
 class Dec_before_use : public Abstract_visitor
 {
@@ -14,7 +15,11 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use() : m_parse_flag(true) {}
+  Dec_before_use() : m_parse_flag(true)
+  {
+    /* give the type checker access to the symbol table that the dec before use generates*/
+    m_type_check_visitor.assign_sym_table(&sym_table);
+  }
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -35,10 +40,16 @@ public:
   */
   bool parse_status()
   {
-    return m_parse_flag;
+    return m_parse_flag && m_type_check_visitor.parse_status();
   }
 
 private:
-  Symbol_table sym_table;
+  /* holds the status of the parser (true if parser sucess or if no parse has been run, false if failure) */
   bool m_parse_flag;
+
+  /* holds variable declerations */
+  Symbol_table sym_table;
+
+  /*  type checker to verify that types are used correctly */
+  Type_checker m_type_check_visitor;
 };

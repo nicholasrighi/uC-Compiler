@@ -77,29 +77,43 @@ void Dec_before_use::dispatch(Func_dec &node)
         /* iterate through all function arguments and dispatch visitor to them */
         for (auto &func_arg : node.m_args->m_sub_expressions)
         {
+            /* add func args to the symbol table*/
             func_arg->accept(*this);
         }
     }
 
-    /* check func body */
+    /* check func body for variable declerations before use */
     node.m_func_body->accept(*this);
+
+    /* now that we've generated the symbol table we can ru the type checker */
+    node.accept(m_type_check_visitor);
 
     /* now remove most nested symbol table to remove references to local functions */
     sym_table.remove_level();
 }
 
 /*
-    Check that the function has already been declared 
+    Checks that the function has been declared and that the function arguments being passed
+    to the function are compatible with the function's decleration
 */
 void Dec_before_use::dispatch(Func_ref &node)
 {
-    /* check that the function is already declared */
 
-    if (!sym_table.get_var_dec(node.m_var->m_name))
+    /* get func dec from symbol table */
+    std::optional<Var_dec *> func_dec = sym_table.get_var_dec(node.m_var->m_name);
+
+    /* check that the function is already declared */
+    if (!func_dec)
     {
         std::cout << "Undeclared function " << node.m_var->m_name << " used " << std::endl;
         m_parse_flag = false;
+
+        /* prevents from evaluating function that hasn't been declared, and thus can't type check args */
+        return;
     }
+
+    /* now run type checker on function, since we know that it's been declared */
+    node.accept(m_type_check_visitor);
 }
 
 /*
@@ -153,6 +167,7 @@ void Dec_before_use::dispatch(Return_dec &node)
 */
 void Dec_before_use::dispatch(Stmt_dec &node)
 {
+
     for (auto &sub_stmt : node.m_sub_expressions)
     {
         sub_stmt->accept(*this);
@@ -178,6 +193,9 @@ void Dec_before_use::dispatch(Var_dec &node)
         std::cout << "Redeclared variable " << node.get_name() << std::endl;
         m_parse_flag = false;
     }
+
+    /* check that variable has valid type */ 
+    node.accept(m_type_check_visitor);
 }
 
 /*

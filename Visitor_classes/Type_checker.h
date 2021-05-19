@@ -8,6 +8,7 @@
 
 // local includes
 #include "../AST_classes/Var_type_decs.h"
+#include "../Supporting_classes/Symbol_table.h"
 
 class Type_checker : public Abstract_visitor
 {
@@ -36,10 +37,15 @@ public:
     return m_parse_flag;
   }
 
+  void assign_sym_table(Symbol_table* sym_table) {m_sym_table = sym_table;}
+
 private:
   /* holds the return type of the node currently being examined */
   Ret_type m_ret_type;
 
   /* holds the status of the parser (true if parser sucess or if no parse has been run, false if failure) */
   bool m_parse_flag;
+
+  /* holds variable declerations */
+  Symbol_table* m_sym_table;
 };

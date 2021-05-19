@@ -1,7 +1,7 @@
 int y;
 
 int x(int y, int b) {
-  int y;
+  return y;
 }
 
 int main(void) {
