@@ -48,4 +48,7 @@ private:
 
   /* holds variable declerations */
   Symbol_table* m_sym_table;
+
+  /* holds the return type of the function currently being examined */
+  Ret_type m_cur_func_ret_type;
 };

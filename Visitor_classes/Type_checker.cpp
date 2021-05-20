@@ -89,6 +89,9 @@ void Type_checker::dispatch(Func_dec &node)
     }
   }
 
+  /* save function return type so we can check it later when examining return statements */
+  m_cur_func_ret_type = node.m_var_type;
+
   /* verify that the function body has valid typing */
   node.m_func_body->accept(*this);
 }
@@ -202,6 +205,13 @@ void Type_checker::dispatch(Number &node)
 void Type_checker::dispatch(Return_dec &node)
 {
   node.m_return_value->accept(*this);
+
+  /* check that return type matches the function's return type*/
+  if (m_cur_func_ret_type != m_ret_type) {
+    std::cout << "Error, function with return type " << type_to_string(m_cur_func_ret_type) << " is returning an expression of type " 
+    << type_to_string(m_ret_type) << std::endl;
+    m_parse_flag = false;
+  }
 }
 
 /*
