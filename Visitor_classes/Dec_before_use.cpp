@@ -85,7 +85,7 @@ void Dec_before_use::dispatch(Func_dec &node)
     /* check func body for variable declerations before use */
     node.m_func_body->accept(*this);
 
-    /* now that we've generated the symbol table we can ru the type checker */
+    /* now that we've generated the symbol table we can run the type checker */
     node.accept(m_type_check_visitor);
 
     /* now remove most nested symbol table to remove references to local functions */
@@ -111,9 +111,6 @@ void Dec_before_use::dispatch(Func_ref &node)
         /* prevents from evaluating function that hasn't been declared, and thus can't type check args */
         return;
     }
-
-    /* now run type checker on function, since we know that it's been declared */
-    node.accept(m_type_check_visitor);
 }
 
 /*

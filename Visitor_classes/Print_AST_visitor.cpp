@@ -174,7 +174,6 @@ void Print_AST_visitor::dispatch(Stmt_dec &node)
 {
   for (auto &child_node : node.m_sub_expressions)
   {
-    std::cout << "Visiting stmt node" << std::endl;
     child_node->accept(*this);
   }
 }

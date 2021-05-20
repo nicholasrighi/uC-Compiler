@@ -1,7 +1,7 @@
 int x;
 
 int main(void) {
-  char x;
+  int x;
   x = 3;
   return x;
 }

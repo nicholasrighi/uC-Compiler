@@ -150,9 +150,19 @@ typename        : "int"     {$$ = Ret_type::INT;}
 
 funbody         : "{" locals stmts "}" {
                                         $$ = new Stmt_dec; 
-                                        $$->add_expression_back($2);
-                                        $$->add_expression_back($3);
+
+                                        for (auto& sub_exp : $2->m_sub_expressions) {
+                                          $$->add_expression_back(sub_exp);
+                                        }
+
+                                        for (auto& sub_exp : $3->m_sub_expressions) {
+                                          $$->add_expression_back(sub_exp);
+                                        }
+
+                                        free($2);
+                                        free($3);
                                        }
+
                 | ";"                  {$$ = nullptr;}
                 ;
 

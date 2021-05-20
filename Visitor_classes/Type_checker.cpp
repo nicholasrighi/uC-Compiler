@@ -56,21 +56,15 @@ void Type_checker::dispatch(Binop_dec &node)
   node.m_left->accept(*this);
   Ret_type left_type = m_ret_type;
 
-  /* check that left type is INT */
-  if (left_type != Ret_type::INT)
-  {
-    std::cout << "Error, left expression of operator '" << node.m_op << "' is " << type_to_string(left_type) << " instead of INT" << std::endl;
-    m_parse_flag = false;
-  }
-
   /* visit right node and save result */
   node.m_right->accept(*this);
   Ret_type right_type = m_ret_type;
 
-  /* check that right type is INT */
-  if (right_type != Ret_type::INT)
+  /* check that left type is INT */
+  if (left_type != right_type)
   {
-    std::cout << "Error, right expression of operator '" << node.m_op << "' is " << type_to_string(right_type) << " instead of INT" << std::endl;
+    std::cout << "Error, right expression of operator '" << node.m_op << "' is " << type_to_string(right_type) << " and left expression is "
+              << type_to_string(left_type) << std::endl;
     m_parse_flag = false;
   }
 }
@@ -86,6 +80,7 @@ void Type_checker::dispatch(Func_dec &node)
     for (auto &arg : node.m_args->m_sub_expressions)
     {
       arg->accept(*this);
+
       if (m_ret_type == Ret_type::VOID)
       {
         std::cout << "Error, function '" << node.m_var->m_name << "' has argument declared an argument of type VOID" << std::endl;
@@ -99,6 +94,7 @@ void Type_checker::dispatch(Func_dec &node)
 }
 
 /*
+  Verifies that the function is being called with the same arguments it was declared with
 */
 void Type_checker::dispatch(Func_ref &node)
 {
@@ -108,6 +104,10 @@ void Type_checker::dispatch(Func_ref &node)
   */
   std::optional<Var_dec *> func_dec = m_sym_table->get_var_dec(node.m_var->m_name);
 
+  /* save return type of function. This is done in 3 spots in this function. It's done here to ensure that the return type is saved even if 
+  the function is called incorrectly.  */
+  m_ret_type = (*func_dec)->m_var_type;
+
   /* get arguments for function decleration and reference, need to compare them to determine if function is being called correctly */
   Stmt_dec *func_dec_args = reinterpret_cast<Func_dec *>(*func_dec)->m_args;
   Stmt_dec *func_ref_args = node.m_args;
@@ -115,6 +115,8 @@ void Type_checker::dispatch(Func_ref &node)
   /* if both function arguments are nullptr, then the function is being called correctly */
   if (func_ref_args == nullptr && func_ref_args == nullptr)
   {
+    /* save return type of function */
+    m_ret_type = (*func_dec)->m_var_type;
     return;
   }
 
@@ -136,7 +138,7 @@ void Type_checker::dispatch(Func_ref &node)
   /* check that the provided arguments have the same type as the declared arguments */
 
   auto it1 = func_dec_args->m_sub_expressions.begin();
-  /* if we get here we know that the number of decalred and provided function arguments are the same, only need one end iterator*/
+  /* if we get here we know that the number of declared and provided function arguments are the same, only need one end iterator*/
   auto end1 = func_dec_args->m_sub_expressions.end();
   auto it2 = func_ref_args->m_sub_expressions.begin();
 
@@ -144,6 +146,7 @@ void Type_checker::dispatch(Func_ref &node)
   {
     (*it1)->accept(*this);
     Ret_type declared_arg_type = m_ret_type;
+
     (*it2)->accept(*this);
     Ret_type provided_arg_type = m_ret_type;
 
@@ -154,6 +157,9 @@ void Type_checker::dispatch(Func_ref &node)
       m_parse_flag = false;
     }
   }
+
+  /* save return type of function */
+  m_ret_type = (*func_dec)->m_var_type;
 }
 
 /*
@@ -195,7 +201,7 @@ void Type_checker::dispatch(Number &node)
 */
 void Type_checker::dispatch(Return_dec &node)
 {
-  /* do nothing */
+  node.m_return_value->accept(*this);
 }
 
 /*
