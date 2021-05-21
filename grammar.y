@@ -150,15 +150,8 @@ typename        : "int"     {$$ = Ret_type::INT;}
 
 funbody         : "{" locals stmts "}" {
                                         $$ = new Stmt_dec; 
-
-                                        for (auto& sub_exp : $2->m_sub_expressions) {
-                                          $$->add_expression_back(sub_exp);
-                                        }
-
-                                        for (auto& sub_exp : $3->m_sub_expressions) {
-                                          $$->add_expression_back(sub_exp);
-                                        }
-
+                                        $$->append_stmt_list($2);
+                                        $$->append_stmt_list($3);
                                         free($2);
                                         free($3);
                                        }
@@ -195,7 +188,7 @@ locals          : vardec ";" locals           {
 
 stmts           : stmt stmts                    {
                                                  $$ = $2;
-                                                 $$->add_expression_front($1);
+                                                 $$->prepend_stmt_list($1);
                                                 }
 
                 | %empty                        {$$ = new Stmt_dec;}
@@ -226,12 +219,7 @@ stmt            : expr ";"                      {
                                                  $$->add_expression_back(new If_dec($2, $3, $4));
                                                 }
 
-                | "{" stmts "}"                 {
-                                                 $$ = $2;
-                                                 //TODO. decide if this is necessary. Can't declare variables inside a stmt, do 
-                                                 // this doesn't really do anything 
-                                                 $$->m_new_scope = true;
-                                                }
+                | "{" stmts "}"                 { $$ = $2; }
 
                 | ";"                           {$$ = nullptr;}
                 ;
@@ -252,7 +240,7 @@ expr            : NUMBER  {$$ = new Number($1);}
                 | unop expr       {
                                    $1->add_expression($2);
                                    $$ = $1;
-                                   }
+                                  }
 
                 | expr binop expr     {
                                         $2->add_left_exp($1);

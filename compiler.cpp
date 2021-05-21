@@ -14,6 +14,7 @@
 /* declared in either grammar.y or parser.l, needed by this program */
 extern FILE *yyin;
 extern Stmt_dec *root;
+extern int yydebug;
 
 /* 
     produces an object file for the specified file, has the following option flags
@@ -21,6 +22,8 @@ extern Stmt_dec *root;
     -f <filename>:    required to run the program, produces object file for <filename>
     
     -d:               print the AST after parsing the input file
+
+    -t:               enable bison output tracing
 */
 int main(int argc, char **argv)
 {
@@ -31,7 +34,7 @@ int main(int argc, char **argv)
   std::string file_name;
 
   /* parse input flags */
-  while ((option_flag = getopt(argc, argv, "df:")) != -1)
+  while ((option_flag = getopt(argc, argv, "tdf:")) != -1)
   {
     switch (option_flag)
     {
@@ -41,6 +44,11 @@ int main(int argc, char **argv)
     case 'f':
       file_specified = true;
       file_name = optarg;
+      break;
+    case 't':
+#ifdef YYDEBUG
+      yydebug = 1;
+#endif
       break;
     case '?':
       std::cout << "invalid command line option " << option_flag << std::endl;
@@ -83,7 +91,7 @@ int main(int argc, char **argv)
   root->accept(dec_visitor);
 
   /* Exit program with error if parse was uncessesful */
-  if (!dec_visitor.parse_status())
+  if (!dec_visitor.global_parse_status())
   {
     std::cout << "Error while parsing, exiting" << std::endl;
     return -1;

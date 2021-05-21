@@ -1,5 +1,6 @@
 #pragma once
 
+// local references
 #include "Stmt_dec.h"
 #include "Base_node.h"
 
@@ -15,6 +16,6 @@ public:
   }
 
   Base_node *m_cond;
-  Base_node *m_stmt_if_true;
-  Base_node *m_stmt_if_false;
+  Stmt_dec *m_stmt_if_true;
+  Stmt_dec *m_stmt_if_false;
 };

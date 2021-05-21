@@ -24,7 +24,7 @@ int indent_level = 0;
 
 void print_tabs(int n)
 {
-  for (int i = 0; i < 2*n; i++)
+  for (int i = 0; i < 3 * n; i++)
   {
     std::cout << " ";
   }
@@ -36,7 +36,8 @@ void add_indent_level()
   print_tabs(indent_level);
 }
 
-void insert_indent() {
+void insert_indent()
+{
   print_tabs(indent_level);
 }
 
@@ -118,11 +119,14 @@ void Print_AST_visitor::dispatch(Func_ref &node)
 
   std::cout << "calling function " << node.m_var->m_name << " with args:" << std::endl;
 
-  if (node.m_args == nullptr) {
+  if (node.m_args == nullptr)
+  {
     add_indent_level();
     std::cout << "no args" << std::endl;
     remove_indent_level();
-  } else {
+  }
+  else
+  {
     node.m_args->accept(*this);
   }
 
@@ -141,13 +145,32 @@ void Print_AST_visitor::dispatch(If_dec &node)
 
   std::cout << "If statement is true, executing:" << std::endl;
 
-  node.m_stmt_if_true->accept(*this);
+  /* verify that statement body isn't empty */
+  if (node.m_stmt_if_true != nullptr)
+  {
+    node.m_stmt_if_true->accept(*this);
+  }
+  else
+  {
+    add_indent_level();
+    std::cout << "empty if statement" << std::endl;
+    remove_indent_level();
+  }
 
   insert_indent();
 
   std::cout << "If statement is false, executing:" << std::endl;
 
-  node.m_stmt_if_false->accept(*this);
+  if (node.m_stmt_if_false != nullptr)
+  {
+    node.m_stmt_if_false->accept(*this);
+  }
+  else
+  {
+    add_indent_level();
+    std::cout << "Empty else part " << std::endl;
+    remove_indent_level();
+  }
 
   remove_indent_level();
 }
@@ -172,10 +195,13 @@ void Print_AST_visitor::dispatch(Return_dec &node)
 
 void Print_AST_visitor::dispatch(Stmt_dec &node)
 {
+  add_indent_level();
+  std::cout << "Stmt node found " << std::endl;
   for (auto &child_node : node.m_sub_expressions)
   {
     child_node->accept(*this);
   }
+  remove_indent_level();
 }
 
 void Print_AST_visitor::dispatch(Unop_dec &node)

@@ -1,7 +1,7 @@
 GRAMMAR_FILE=grammar
 PARSER_FILE=parser
 EXE_NAME=compiler
-BISON_FLAGS=-d 
+BISON_FLAGS= -d --debug
 CC=g++
 C_FLAGS=-Wno-write-strings -std=c++17 -g
 

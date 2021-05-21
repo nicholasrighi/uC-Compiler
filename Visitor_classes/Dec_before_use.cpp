@@ -88,6 +88,20 @@ void Dec_before_use::dispatch(Func_dec &node)
     /* now that we've generated the symbol table we can run the type checker */
     node.accept(m_type_check_visitor);
 
+    /* 
+        now that the type checker has verified that all types are correct, we can 
+        verify that there is a return statement through all paths of control flow
+        for non-void functions
+    */
+    if (node.m_var_type != Ret_type::VOID) {
+        node.accept(m_return_checker);
+    }
+
+    /* marks if any of the visitor classes failed */
+    if (!parse_status()) {
+        m_global_check_flag = false;
+    }
+
     /* now remove most nested symbol table to remove references to local functions */
     sym_table.remove_level();
 }
@@ -191,7 +205,7 @@ void Dec_before_use::dispatch(Var_dec &node)
         m_parse_flag = false;
     }
 
-    /* check that variable has valid type */ 
+    /* check that variable has valid type */
     node.accept(m_type_check_visitor);
 }
 

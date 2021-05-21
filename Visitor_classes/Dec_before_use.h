@@ -6,6 +6,7 @@
 // local files
 #include "../Supporting_classes/Symbol_table.h"
 #include "Type_checker.h"
+#include "Return_checker.h"
 
 class Dec_before_use : public Abstract_visitor
 {
@@ -19,6 +20,7 @@ public:
   {
     /* give the type checker access to the symbol table that the dec before use generates*/
     m_type_check_visitor.assign_sym_table(&sym_table);
+    m_global_check_flag = true;
   }
 
   void dispatch(Array_access &node) override;
@@ -35,21 +37,31 @@ public:
   void dispatch(Var_ref &node) override;
   void dispatch(While_dec &node) override;
 
+  bool global_parse_status() {
+    return m_global_check_flag;
+  }
+
+private:
   /* 
     returns true if no errors were detected when parsing, false otherwise
   */
   bool parse_status()
   {
-    return m_parse_flag && m_type_check_visitor.parse_status();
+    return m_parse_flag && m_type_check_visitor.parse_status() && m_return_checker.parse_status();
   }
 
-private:
   /* holds the status of the parser (true if parser sucess or if no parse has been run, false if failure) */
   bool m_parse_flag;
+
+  /* holds the status if the parser ever failed */
+  bool m_global_check_flag;
 
   /* holds variable declerations */
   Symbol_table sym_table;
 
   /*  type checker to verify that types are used correctly */
   Type_checker m_type_check_visitor;
+
+  /*  ensures that all non void functions return a value through all paths of control */
+  Return_checker m_return_checker;
 };
