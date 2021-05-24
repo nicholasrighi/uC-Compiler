@@ -9,19 +9,23 @@
 // local includes
 #include "../AST_classes/Var_dec.h"
 
+/* 
+   A symbol table entry is composed of the variable declaration, the 
+   variable's storage location in memory, and the variable's offset from the base pointer
+   (the offset is only used if the variable is local, and thus on the stack)
+*/
+using sym_table_entry = std::tuple<Var_dec*, Var_storage, int>;
+
 class Symbol_table
 {
 public:
-  Symbol_table()
-  {
-    chained_sym_table.push_back(std::unordered_map<std::string, Var_dec *> {});
-  }
+  Symbol_table();
 
   /* 
      Adds a variable of the specified type to the symbol table. Returns false if
      the variable was already defined. Returns true otherwise 
   */
-  bool add_var(std::string name, Var_dec* variable);
+  bool add_var(std::string name, sym_table_entry sym_entry);
 
   /* 
      Returns an optional containing the type of the specified variable. If the
@@ -49,5 +53,5 @@ public:
     scope, the back of the list is the least nested. Searching for a variable starts at the 
     front (most nested) and goes to the back
   */
-  std::list<std::unordered_map<std::string, Var_dec *>> chained_sym_table;
+  std::list<std::unordered_map<std::string, sym_table_entry>> chained_sym_table;
 };

@@ -16,7 +16,7 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use() : m_parse_flag(true)
+  Dec_before_use() : m_parse_flag(true), m_global_var_flag(true), m_bsp_offset(0)
   {
     /* give the type checker access to the symbol table that the dec before use generates*/
     m_type_check_visitor.assign_sym_table(&sym_table);
@@ -64,4 +64,10 @@ private:
 
   /*  ensures that all non void functions return a value through all paths of control */
   Return_checker m_return_checker;
+
+  /*  flag that determines if variables are defined as global or local */
+  bool m_global_var_flag;
+
+  /*  the offset the next variable is from the base pointer */
+  int m_bsp_offset;
 };

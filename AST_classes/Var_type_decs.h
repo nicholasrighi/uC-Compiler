@@ -26,6 +26,14 @@ enum class Object_type
 };
 
 /*
+  Where the variable will be located in memory
+*/
+enum class Var_storage{
+  LOCAL,
+  GLOBAL
+};
+
+/*
   Returns a string representation of the specified Ret_type
 */
 std::string type_to_string(Ret_type type);

@@ -38,11 +38,14 @@ void Dec_before_use::dispatch(Array_access &node)
 */
 void Dec_before_use::dispatch(Array_dec &node)
 {
-    if (!sym_table.add_var(node.get_name(), &node))
+    Var_storage storage_type = m_global_check_flag ? Var_storage::GLOBAL : Var_storage::LOCAL;
+
+    if (!sym_table.add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
     {
         std::cout << "Redeclared variable " << node.get_name() << std::endl;
         m_parse_flag = false;
     }
+    m_bsp_offset += node.m_array_size;
 }
 
 /*
@@ -61,9 +64,11 @@ void Dec_before_use::dispatch(Binop_dec &node)
 */
 void Dec_before_use::dispatch(Func_dec &node)
 {
+    /* set to false to prevent locals from being declared global. Reset to true on function exit */
+    m_global_var_flag = false;
 
-    /* add the function itself to the symbol table*/
-    if (!sym_table.add_var(node.get_name(), &node))
+    /* add the function itself to the symbol table. Storage type and offset don't matter for functions */
+    if (!sym_table.add_var(node.get_name(), sym_table_entry(&node, Var_storage::GLOBAL, 0)))
     {
         std::cout << "Error, variable with name '" << node.get_name() << "' already declared" << std::endl;
         m_parse_flag = false;
@@ -93,17 +98,21 @@ void Dec_before_use::dispatch(Func_dec &node)
         verify that there is a return statement through all paths of control flow
         for non-void functions
     */
-    if (node.m_var_type != Ret_type::VOID) {
+    if (node.m_var_type != Ret_type::VOID)
+    {
         node.accept(m_return_checker);
     }
 
     /* marks if any of the visitor classes failed */
-    if (!parse_status()) {
+    if (!parse_status())
+    {
         m_global_check_flag = false;
     }
 
     /* now remove most nested symbol table to remove references to local functions */
     sym_table.remove_level();
+
+    m_global_var_flag = true;
 }
 
 /*
@@ -199,7 +208,10 @@ void Dec_before_use::dispatch(Unop_dec &node)
 */
 void Dec_before_use::dispatch(Var_dec &node)
 {
-    if (!sym_table.add_var(node.get_name(), &node))
+
+    Var_storage storage_type = m_global_var_flag ? Var_storage::GLOBAL : Var_storage::LOCAL;
+
+    if (!sym_table.add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
     {
         std::cout << "Redeclared variable " << node.get_name() << std::endl;
         m_parse_flag = false;
@@ -207,6 +219,9 @@ void Dec_before_use::dispatch(Var_dec &node)
 
     /* check that variable has valid type */
     node.accept(m_type_check_visitor);
+
+    /* for now assume that every variable has a fixed size at 8 bytes */
+    m_bsp_offset += 8;
 }
 
 /*

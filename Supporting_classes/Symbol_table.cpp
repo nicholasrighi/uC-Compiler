@@ -4,7 +4,13 @@
 // System includes
 #include <iostream>
 
-bool Symbol_table::add_var(std::string name, Var_dec *variable)
+Symbol_table::Symbol_table()
+{
+
+  chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
+}
+
+bool Symbol_table::add_var(std::string name, sym_table_entry sym_entry)
 {
   {
     /*
@@ -16,7 +22,7 @@ bool Symbol_table::add_var(std::string name, Var_dec *variable)
     {
       return false;
     }
-    chained_sym_table.front().insert({name, variable});
+    chained_sym_table.front().insert({name, sym_entry});
     return true;
   }
 }
@@ -29,7 +35,7 @@ std::optional<Var_dec *> Symbol_table::get_var_dec(std::string name)
     /* if we find the variable we're looking for, return it */
     if (table.count(name) == 1)
     {
-      return {table.at(name)};
+      return {std::get<0>(table.at(name))};
     }
   }
   /* if we exit the loop, variable isn't in table, return false in optional */
@@ -47,11 +53,12 @@ void Symbol_table::print_sym_table()
   }
 }
 
-
-void Symbol_table::add_level() {
-  chained_sym_table.push_front(std::unordered_map<std::string, Var_dec*> {});
+void Symbol_table::add_level()
+{
+  chained_sym_table.push_front(std::unordered_map<std::string, sym_table_entry>{}); 
 }
 
-void Symbol_table::remove_level() {
+void Symbol_table::remove_level()
+{
   chained_sym_table.pop_front();
 }
