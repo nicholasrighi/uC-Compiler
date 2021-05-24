@@ -14,15 +14,7 @@ class Symbol_table
 public:
   Symbol_table()
   {
-    chained_sym_table.push_back(new std::unordered_map<std::string, Var_dec *>);
-  }
-
-  ~Symbol_table()
-  {
-    for (auto &table : chained_sym_table)
-    {
-      delete (table);
-    }
+    chained_sym_table.push_back(std::unordered_map<std::string, Var_dec *> {});
   }
 
   /* 
@@ -57,5 +49,5 @@ public:
     scope, the back of the list is the least nested. Searching for a variable starts at the 
     front (most nested) and goes to the back
   */
-  std::list<std::unordered_map<std::string, Var_dec *> *> chained_sym_table;
+  std::list<std::unordered_map<std::string, Var_dec *>> chained_sym_table;
 };
