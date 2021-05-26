@@ -95,5 +95,8 @@ int main(int argc, char **argv)
   {
     std::cout << "Error while parsing, exiting" << std::endl;
     return -1;
-  }
+  } 
+
+  dec_visitor.gen_3_code(root);
+  dec_visitor.print();
 }

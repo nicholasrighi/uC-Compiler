@@ -7,6 +7,7 @@
 #include "../Supporting_classes/Symbol_table.h"
 #include "Type_checker.h"
 #include "Return_checker.h"
+#include "Three_addr_gen.h"
 
 class Dec_before_use : public Abstract_visitor
 {
@@ -16,7 +17,7 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use() : m_parse_flag(true), m_global_var_flag(true), m_bsp_offset(0)
+  Dec_before_use() : m_parse_flag(true), m_global_var_flag(true), m_bsp_offset(0), m_three_code_gen(&sym_table)
   {
     /* give the type checker access to the symbol table that the dec before use generates*/
     m_type_check_visitor.assign_sym_table(&sym_table);
@@ -39,6 +40,14 @@ public:
 
   bool global_parse_status() {
     return m_global_check_flag;
+  }
+
+  void gen_3_code(Base_node* root) {
+    root->accept(m_three_code_gen);
+  }
+
+  void print() {
+    m_three_code_gen.print_IR_code();
   }
 
 private:
@@ -64,6 +73,9 @@ private:
 
   /*  ensures that all non void functions return a value through all paths of control */
   Return_checker m_return_checker;
+
+  /*  generates an intermediate 3 address code from a valid AST */
+  Three_addr_gen m_three_code_gen;
 
   /*  flag that determines if variables are defined as global or local */
   bool m_global_var_flag;
