@@ -165,8 +165,15 @@ void Three_addr_gen::dispatch(Return_dec &node)
   /* calculate temporary for body */
   node.m_return_value->accept(*this);
 
-  /*  return that temporary */
-  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, m_last_entry, Three_addr_var()));
+  /*  load temporary from body into a new temporary (must be in a register to be returned) */
+  Three_addr_var load_temp(gen_temp());
+
+  m_intermediate_rep.push_back(std::make_tuple(load_temp, Three_addr_OP::LOAD, m_last_entry, Three_addr_var()));
+
+  /*  return that temporary variable */
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, load_temp, Three_addr_var()));
+
+  m_last_entry = load_temp;
 }
 
 void Three_addr_gen::dispatch(Stmt_dec &node)
