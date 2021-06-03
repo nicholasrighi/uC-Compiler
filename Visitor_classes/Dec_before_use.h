@@ -1,5 +1,8 @@
 #pragma once
 
+// System includes
+#include <list>
+
 // Inherits from
 #include "Abstract_visitor.h"
 
@@ -17,12 +20,7 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use() : m_parse_flag(true), m_global_var_flag(true), m_bsp_offset(0), m_three_code_gen(&sym_table)
-  {
-    /* give the type checker access to the symbol table that the dec before use generates*/
-    m_type_check_visitor.assign_sym_table(&sym_table);
-    m_global_check_flag = true;
-  }
+  Dec_before_use(std::list<Symbol_table>& sym_table_list);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -38,26 +36,17 @@ public:
   void dispatch(Var_ref &node) override;
   void dispatch(While_dec &node) override;
 
-  bool global_parse_status() {
-    return m_global_check_flag;
-  }
+  bool global_parse_status();
 
-  void gen_3_code(Base_node* root) {
-    root->accept(m_three_code_gen);
-  }
+  void gen_3_code(Base_node *root);
 
-  void print() {
-    m_three_code_gen.print_IR_code();
-  }
+  void print();
 
 private:
   /* 
     returns true if no errors were detected when parsing, false otherwise
   */
-  bool parse_status()
-  {
-    return m_parse_flag && m_type_check_visitor.parse_status() && m_return_checker.parse_status();
-  }
+  bool parse_status();
 
   /* holds the status of the parser (true if parser sucess or if no parse has been run, false if failure) */
   bool m_parse_flag;
@@ -65,21 +54,24 @@ private:
   /* holds the status if the parser ever failed */
   bool m_global_check_flag;
 
-  /* holds variable declerations */
-  Symbol_table sym_table;
+  /*  
+      each entry in the list is the symbol table for a seperate function. The first entry in the list is the 
+      symbol table for the global variables
+  */
+  std::list<Symbol_table>& m_sym_table_list;
 
   /*  type checker to verify that types are used correctly */
-  Type_checker m_type_check_visitor;
+  //Type_checker m_type_check_visitor;
 
   /*  ensures that all non void functions return a value through all paths of control */
-  Return_checker m_return_checker;
+  //Return_checker m_return_checker;
 
   /*  generates an intermediate 3 address code from a valid AST */
-  Three_addr_gen m_three_code_gen;
+  //Three_addr_gen m_three_code_gen;
 
   /*  flag that determines if variables are defined as global or local */
   bool m_global_var_flag;
 
-  /*  the offset the next variable is from the base pointer */
+  /*  the offset of the next variable from the base pointer */
   int m_bsp_offset;
 };

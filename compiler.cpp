@@ -11,6 +11,8 @@
 #include "Visitor_classes/Print_AST_visitor.h"
 #include "Visitor_classes/Dec_before_use.h"
 
+#include "Supporting_classes/Symbol_table.h"
+
 /* declared in either grammar.y or parser.l, needed by this program */
 extern FILE *yyin;
 extern Stmt_dec *root;
@@ -56,14 +58,12 @@ int main(int argc, char **argv)
     }
   }
 
-  /* check that use gave us a file */
   if (!file_specified)
   {
     std::cout << "Must specify file with -f <filename> " << std::endl;
     return -1;
   }
 
-  /* check that the user's file is valid */
   yyin = fopen(file_name.c_str(), "r");
   if (!yyin)
   {
@@ -74,29 +74,26 @@ int main(int argc, char **argv)
   /* construct AST */
   yyparse();
 
-  /* close file since we no longer need it after AST has been constructed */
   fclose(yyin);
 
-  /* declare our visitors */
-  Print_AST_visitor print_visitor;
-  Dec_before_use dec_visitor;
+  std::list<Symbol_table> sym_table_list;
 
-  /* print AST if -d flag passed to program */
+  Print_AST_visitor print_visitor;
+  Dec_before_use dec_visitor(sym_table_list);
+
   if (print_AST)
   {
     root->accept(print_visitor);
   }
 
-  /* check variables are declared before they're used, and that no type mismatches exist */
   root->accept(dec_visitor);
 
-  /* Exit program with error if parse was uncessesful */
   if (!dec_visitor.global_parse_status())
   {
     std::cout << "Error while parsing, exiting" << std::endl;
     return -1;
   } 
 
-  dec_visitor.gen_3_code(root);
-  dec_visitor.print();
+  //dec_visitor.gen_3_code(root);
+  //dec_visitor.print();
 }

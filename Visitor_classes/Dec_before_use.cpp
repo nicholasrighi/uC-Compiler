@@ -20,13 +20,40 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
+Dec_before_use::Dec_before_use(std::list<Symbol_table> &sym_table) : m_parse_flag(true), m_global_var_flag(true), m_sym_table_list(sym_table), m_bsp_offset(0)
+{
+    /* give the type checker access to the symbol table that the dec before use generates*/
+    //m_type_check_visitor.assign_sym_table(&sym_table);
+    m_global_check_flag = true;
+}
+
+bool Dec_before_use::global_parse_status()
+{
+    return m_global_check_flag;
+}
+
+void Dec_before_use::gen_3_code(Base_node *root)
+{
+    //root->accept(m_three_code_gen);
+}
+
+void Dec_before_use::print()
+{
+    //m_three_code_gen.print_IR_code();
+}
+
+bool Dec_before_use::parse_status()
+{
+    return m_parse_flag; //&& m_type_check_visitor.parse_status() && m_return_checker.parse_status();
+}
+
 /*
     Need to check that the variable being accessed is in the symbol table
 */
 void Dec_before_use::dispatch(Array_access &node)
 {
     /* check that the variable has been declared*/
-    if (!sym_table.get_var_dec(node.m_var->m_name))
+    if (!m_sym_table_list.back().get_var_dec(node.m_var->m_name))
     {
         std::cout << "Undeclared array '" << node.m_var->m_name << "'" << std::endl;
         m_parse_flag = false;
@@ -40,7 +67,7 @@ void Dec_before_use::dispatch(Array_dec &node)
 {
     Var_storage storage_type = m_global_check_flag ? Var_storage::GLOBAL : Var_storage::LOCAL;
 
-    if (!sym_table.add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+    if (!m_sym_table_list.back().add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
     {
         std::cout << "Redeclared variable " << node.get_name() << std::endl;
         m_parse_flag = false;
@@ -64,53 +91,54 @@ void Dec_before_use::dispatch(Binop_dec &node)
 */
 void Dec_before_use::dispatch(Func_dec &node)
 {
+
+    /*  Need a new symbol table for this function */
+    m_sym_table_list.push_back(Symbol_table {});
+
     /* set to false to prevent locals from being declared global. Reset to true on function exit */
     m_global_var_flag = false;
 
     /* add the function itself to the symbol table. Storage type and offset don't matter for functions */
-    if (!sym_table.add_var(node.get_name(), sym_table_entry(&node, Var_storage::GLOBAL, 0)))
+    if (!m_sym_table_list.back().add_var(node.get_name(), sym_table_entry(&node, Var_storage::GLOBAL, 0)))
     {
         std::cout << "Error, variable with name '" << node.get_name() << "' already declared" << std::endl;
         m_parse_flag = false;
     }
 
     /* now add chain new symbol table for local function scope */
-    sym_table.add_level();
+    m_sym_table_list.back().add_level();
 
+    /*  add function args to symbol table */
     if (node.m_args != nullptr)
     {
-        /* iterate through all function arguments and dispatch visitor to them */
         for (auto &func_arg : node.m_args->m_sub_expressions)
         {
-            /* add func args to the symbol table*/
             func_arg->accept(*this);
         }
     }
 
-    /* check func body for variable declerations before use */
     node.m_func_body->accept(*this);
 
     /* now that we've generated the symbol table we can run the type checker */
-    node.accept(m_type_check_visitor);
+    //node.accept(m_type_check_visitor);
 
     /* 
         now that the type checker has verified that all types are correct, we can 
         verify that there is a return statement through all paths of control flow
         for non-void functions
     */
+    /*
     if (node.m_var_type != Ret_type::VOID)
     {
         node.accept(m_return_checker);
     }
+    */
 
-    /* marks if any of the visitor classes failed */
+    /* marks if any of the visitor classes failed, ensures failures persist through entire visitor check */
     if (!parse_status())
     {
         m_global_check_flag = false;
     }
-
-    /* now remove most nested symbol table to remove references to local functions */
-    sym_table.remove_level();
 
     m_global_var_flag = true;
 }
@@ -123,7 +151,7 @@ void Dec_before_use::dispatch(Func_ref &node)
 {
 
     /* get func dec from symbol table */
-    std::optional<Var_dec *> func_dec = sym_table.get_var_dec(node.m_var->m_name);
+    std::optional<Var_dec *> func_dec = m_sym_table_list.back().get_var_dec(node.m_var->m_name);
 
     /* check that the function is already declared */
     if (!func_dec)
@@ -146,7 +174,7 @@ void Dec_before_use::dispatch(If_dec &node)
     node.m_cond->accept(*this);
 
     /* add a level to the symbol table for the inside of the if statement */
-    sym_table.add_level();
+    m_sym_table_list.back().add_level();
 
     /* check that the body of the if statement isn't null and examine the body */
     if (node.m_stmt_if_true != nullptr)
@@ -159,9 +187,6 @@ void Dec_before_use::dispatch(If_dec &node)
     {
         node.m_stmt_if_false->accept(*this);
     }
-
-    /* remove the inner most scope from the symbol table as we leave the if statment */
-    sym_table.remove_level();
 }
 
 /*
@@ -211,17 +236,30 @@ void Dec_before_use::dispatch(Var_dec &node)
 
     Var_storage storage_type = m_global_var_flag ? Var_storage::GLOBAL : Var_storage::LOCAL;
 
-    if (!sym_table.add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+    /*  
+        Add variable to the symbol table for global variables if var is declared as global. Otherwise add to the 
+        function specific symbol table and add 8 to the offset 
+    */
+    if (m_global_var_flag)
     {
-        std::cout << "Redeclared variable " << node.get_name() << std::endl;
-        m_parse_flag = false;
+        if (!m_sym_table_list.front().add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+        {
+            std::cout << "Redeclared global variable " << node.get_name() << std::endl;
+            m_parse_flag = false;
+        }
     }
-
-    /* check that variable has valid type */
-    node.accept(m_type_check_visitor);
-
-    /* for now assume that every variable has a fixed size at 8 bytes */
-    m_bsp_offset += 8;
+    else
+    {
+        if (m_sym_table_list.back().add_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+        {
+            m_bsp_offset += 8;
+        }
+        else
+        {
+            std::cout << "Redeclared local variable " << node.get_name() << std::endl;
+            m_parse_flag = false;
+        }
+    }
 }
 
 /*
@@ -232,7 +270,7 @@ void Dec_before_use::dispatch(Var_dec &node)
 void Dec_before_use::dispatch(Var_ref &node)
 {
     /* check that the variable has been declared*/
-    if (!sym_table.get_var_dec(node.m_name))
+    if (!m_sym_table_list.back().get_var_dec(node.m_name))
     {
         std::cout << "Undeclared variable " << node.m_name << std::endl;
         m_parse_flag = false;
@@ -249,7 +287,7 @@ void Dec_before_use::dispatch(While_dec &node)
     node.m_cond->accept(*this);
 
     /* the body of the while loop is a new scope, so we add a level to the symbol table */
-    sym_table.add_level();
+    m_sym_table_list.back().add_level();
 
     /* check that loop body exists, and then type check the body */
     if (node.m_body != nullptr)

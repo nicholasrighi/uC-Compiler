@@ -1,3 +1,5 @@
 int main(void) {
-  return 3*2;
+  int x;
+  x = 3*2;
+  return x;
 }

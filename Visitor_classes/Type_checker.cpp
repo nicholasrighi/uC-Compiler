@@ -19,6 +19,10 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
+Type_checker::Type_checker(Symbol_table &sym_table) : m_sym_table(sym_table), m_parse_flag(true) {}
+
+bool Type_checker::parse_status() { return m_parse_flag; }
+
 /*
     Verifies that the expression being used to access the array is an integer.
 */
@@ -74,6 +78,9 @@ void Type_checker::dispatch(Binop_dec &node)
 */
 void Type_checker::dispatch(Func_dec &node)
 {
+
+  /* increase level of symbol table */
+
   /* verify that none of the function arguments are declared with type void */
   if (node.m_args != nullptr)
   {
@@ -101,11 +108,7 @@ void Type_checker::dispatch(Func_dec &node)
 */
 void Type_checker::dispatch(Func_ref &node)
 {
-  /* 
-     get var dec out of symbol table. Since this visitor runs after the dec_before_use visitor,
-     we know that the variable exists 
-  */
-  std::optional<Var_dec *> func_dec = m_sym_table->get_var_dec(node.m_var->m_name);
+  std::optional<Var_dec *> func_dec = m_sym_table.get_var_dec(node.m_var->m_name);
 
   /* save return type of function. This is done in 3 spots in this function. It's done here to ensure that the return type is saved even if 
   the function is called incorrectly.  */
@@ -123,7 +126,6 @@ void Type_checker::dispatch(Func_ref &node)
     return;
   }
 
-  /* check if only one of the arguments is null; if only one is null, function is being called incorrectly error */
   if ((func_dec_args == nullptr && func_ref_args != nullptr) || (func_dec_args != nullptr && func_ref_args == nullptr))
   {
     std::cout << "Error, calling function " << node.m_var->m_name << " with invalid arguments" << std::endl;
@@ -131,7 +133,6 @@ void Type_checker::dispatch(Func_ref &node)
     return;
   }
 
-  /* check that the number of arugments provided is the same as the number of arguments declared */
   if (func_dec_args->m_sub_expressions.size() != func_ref_args->m_sub_expressions.size())
   {
     std::cout << "Error, function '" << node.m_var->m_name << "' called with " << func_ref_args->m_sub_expressions.size() << " arguments, " << func_dec_args->m_sub_expressions.size() << " arguments expected" << std::endl;
@@ -139,9 +140,7 @@ void Type_checker::dispatch(Func_ref &node)
   }
 
   /* check that the provided arguments have the same type as the declared arguments */
-
   auto it1 = func_dec_args->m_sub_expressions.begin();
-  /* if we get here we know that the number of declared and provided function arguments are the same, only need one end iterator*/
   auto end1 = func_dec_args->m_sub_expressions.end();
   auto it2 = func_ref_args->m_sub_expressions.begin();
 
@@ -207,9 +206,10 @@ void Type_checker::dispatch(Return_dec &node)
   node.m_return_value->accept(*this);
 
   /* check that return type matches the function's return type*/
-  if (m_cur_func_ret_type != m_ret_type) {
-    std::cout << "Error, function with return type " << type_to_string(m_cur_func_ret_type) << " is returning an expression of type " 
-    << type_to_string(m_ret_type) << std::endl;
+  if (m_cur_func_ret_type != m_ret_type)
+  {
+    std::cout << "Error, function with return type " << type_to_string(m_cur_func_ret_type) << " is returning an expression of type "
+              << type_to_string(m_ret_type) << std::endl;
     m_parse_flag = false;
   }
 }
@@ -253,7 +253,7 @@ void Type_checker::dispatch(Var_dec &node)
 */
 void Type_checker::dispatch(Var_ref &node)
 {
-  std::optional<Var_dec *> ref = m_sym_table->get_var_dec(node.m_name);
+  std::optional<Var_dec *> ref = m_sym_table.get_var_dec(node.m_name);
   m_ret_type = (*ref)->m_var_type;
 }
 

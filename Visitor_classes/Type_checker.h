@@ -13,7 +13,7 @@
 class Type_checker : public Abstract_visitor
 {
 public:
-  Type_checker() : m_parse_flag(true) {}
+  Type_checker(Symbol_table& sym_table);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -32,12 +32,7 @@ public:
   /* 
     returns true if no errors were detected when parsing, false otherwise
   */
-  bool parse_status()
-  {
-    return m_parse_flag;
-  }
-
-  void assign_sym_table(Symbol_table* sym_table) {m_sym_table = sym_table;}
+  bool parse_status();
 
 private:
   /* holds the return type of the node currently being examined */
@@ -47,7 +42,7 @@ private:
   bool m_parse_flag;
 
   /* holds variable declerations */
-  Symbol_table* m_sym_table;
+  Symbol_table& m_sym_table;
 
   /* holds the return type of the function currently being examined */
   Ret_type m_cur_func_ret_type;

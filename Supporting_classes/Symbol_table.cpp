@@ -6,33 +6,28 @@
 
 Symbol_table::Symbol_table()
 {
-
-  chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
+  m_chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
+  m_table_level = m_chained_sym_table.begin();
 }
 
 bool Symbol_table::add_var(std::string name, sym_table_entry sym_entry)
 {
   {
-    /*
-      Adds a variable to the top level of the symbol table if the variable isn't already 
-      declared at the top level. Returns false is the variable is already declared in the 
-      top level of the symbol table, otherwise returns true
-    */
-    if (chained_sym_table.front().count(name) >= 1)
+    if (m_chained_sym_table.front().count(name) >= 1)
     {
       return false;
     }
-    chained_sym_table.front().insert({name, sym_entry});
+    m_chained_sym_table.front().insert({name, sym_entry});
     return true;
   }
 }
 
 std::optional<Var_dec *> Symbol_table::get_var_dec(std::string name)
 {
-  /* iterate through all tables, starting at the most nested scope (ie. front of the table) */
-  for (auto &table : chained_sym_table)
+  /* only start checking at the currently recorded scope, not the most nested scope */
+  for (; m_table_level != m_chained_sym_table.end(); m_table_level++)
   {
-    /* if we find the variable we're looking for, return it */
+    auto &table = *m_table_level;
     if (table.count(name) == 1)
     {
       return {std::get<0>(table.at(name))};
@@ -44,7 +39,7 @@ std::optional<Var_dec *> Symbol_table::get_var_dec(std::string name)
 
 void Symbol_table::print_sym_table()
 {
-  for (auto &tables : chained_sym_table)
+  for (auto &tables : m_chained_sym_table)
   {
     for (auto &symbols : tables)
     {
@@ -55,10 +50,15 @@ void Symbol_table::print_sym_table()
 
 void Symbol_table::add_level()
 {
-  chained_sym_table.push_front(std::unordered_map<std::string, sym_table_entry>{}); 
+  m_chained_sym_table.push_front(std::unordered_map<std::string, sym_table_entry>{});
+  /*  need the iterator to point to the new most nested scope */
+  m_table_level--;
 }
 
 void Symbol_table::remove_level()
 {
-  chained_sym_table.pop_front();
+  /*  doesn't remove the most nested symbol table from the list, only ensures that the more nested scope(s) 
+      won't be checked when get_var_dec() is called
+  */
+  m_table_level++;
 }
