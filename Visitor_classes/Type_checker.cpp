@@ -19,7 +19,7 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-Type_checker::Type_checker(Symbol_table &sym_table) : m_sym_table(sym_table), m_parse_flag(true) {}
+Type_checker::Type_checker(Program_symbol_table& sym_table) : m_prog_sym_table(sym_table), m_parse_flag(true) {}
 
 bool Type_checker::parse_status() { return m_parse_flag; }
 
@@ -79,7 +79,7 @@ void Type_checker::dispatch(Binop_dec &node)
 void Type_checker::dispatch(Func_dec &node)
 {
 
-  /* increase level of symbol table */
+  m_prog_sym_table.set_search_func(node.get_name());
 
   /* verify that none of the function arguments are declared with type void */
   if (node.m_args != nullptr)
@@ -99,7 +99,6 @@ void Type_checker::dispatch(Func_dec &node)
   /* save function return type so we can check it later when examining return statements */
   m_cur_func_ret_type = node.m_var_type;
 
-  /* verify that the function body has valid typing */
   node.m_func_body->accept(*this);
 }
 
@@ -108,10 +107,10 @@ void Type_checker::dispatch(Func_dec &node)
 */
 void Type_checker::dispatch(Func_ref &node)
 {
-  std::optional<Var_dec *> func_dec = m_sym_table.get_var_dec(node.m_var->m_name);
 
-  /* save return type of function. This is done in 3 spots in this function. It's done here to ensure that the return type is saved even if 
-  the function is called incorrectly.  */
+  std::optional<Var_dec *> func_dec = m_prog_sym_table.get_func_dec(node.m_var->m_name);
+
+  /* save return type of function */
   m_ret_type = (*func_dec)->m_var_type;
 
   /* get arguments for function decleration and reference, need to compare them to determine if function is being called correctly */
@@ -253,7 +252,7 @@ void Type_checker::dispatch(Var_dec &node)
 */
 void Type_checker::dispatch(Var_ref &node)
 {
-  std::optional<Var_dec *> ref = m_sym_table.get_var_dec(node.m_name);
+  std::optional<Var_dec *> ref = m_prog_sym_table.get_var_dec(node.m_name);
   m_ret_type = (*ref)->m_var_type;
 }
 

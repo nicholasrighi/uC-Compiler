@@ -7,7 +7,7 @@
 #include "Abstract_visitor.h"
 
 // local files
-#include "../Supporting_classes/Symbol_table.h"
+#include "../Supporting_classes/Program_symbol_table.h"
 #include "Type_checker.h"
 #include "Return_checker.h"
 #include "Three_addr_gen.h"
@@ -20,7 +20,7 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use(std::list<Symbol_table>& sym_table_list);
+  Dec_before_use(Program_symbol_table& program_sym_table);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -36,40 +36,24 @@ public:
   void dispatch(Var_ref &node) override;
   void dispatch(While_dec &node) override;
 
-  bool global_parse_status();
-
-  void gen_3_code(Base_node *root);
-
-  void print();
-
-private:
-  /* 
-    returns true if no errors were detected when parsing, false otherwise
-  */
+  /*  Returns true if the parser has parsed a file with no errors, otherwise false */
   bool parse_status();
 
-  /* holds the status of the parser (true if parser sucess or if no parse has been run, false if failure) */
-  bool m_parse_flag;
+private:
 
-  /* holds the status if the parser ever failed */
-  bool m_global_check_flag;
+  /* 
+      holds the status of the parser (true if parser sucess or if no parse has been run, 
+      false if failure)
+  */
+  bool m_parse_flag;
 
   /*  
       each entry in the list is the symbol table for a seperate function. The first entry in the list is the 
       symbol table for the global variables
   */
-  std::list<Symbol_table>& m_sym_table_list;
+  Program_symbol_table& m_prog_sym_table;
 
-  /*  type checker to verify that types are used correctly */
-  //Type_checker m_type_check_visitor;
-
-  /*  ensures that all non void functions return a value through all paths of control */
-  //Return_checker m_return_checker;
-
-  /*  generates an intermediate 3 address code from a valid AST */
-  //Three_addr_gen m_three_code_gen;
-
-  /*  flag that determines if variables are defined as global or local */
+  /*  indicates if variables should be defined as global */
   bool m_global_var_flag;
 
   /*  the offset of the next variable from the base pointer */

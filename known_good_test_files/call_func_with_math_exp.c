@@ -3,5 +3,5 @@ int f(int a) {
 }
 
 int main(void) {
-  return f(3*2);
+  return f(7*8);
 }

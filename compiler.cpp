@@ -11,21 +11,24 @@
 #include "Visitor_classes/Print_AST_visitor.h"
 #include "Visitor_classes/Dec_before_use.h"
 
-#include "Supporting_classes/Symbol_table.h"
+#include "Supporting_classes/Program_symbol_table.h"
 
 /* declared in either grammar.y or parser.l, needed by this program */
 extern FILE *yyin;
 extern Stmt_dec *root;
 extern int yydebug;
 
+
 /* 
-    produces an object file for the specified file, has the following option flags
+    produces an object file for the specified input file, has the following option flags
 
     -f <filename>:    required to run the program, produces object file for <filename>
     
     -d:               print the AST after parsing the input file
 
     -t:               enable bison output tracing
+
+    -s:               print symbol table
 */
 int main(int argc, char **argv)
 {
@@ -33,10 +36,11 @@ int main(int argc, char **argv)
   int option_flag;
   bool print_AST = false;
   bool file_specified = false;
+  bool print_sym_table = false;
   std::string file_name;
 
   /* parse input flags */
-  while ((option_flag = getopt(argc, argv, "tdf:")) != -1)
+  while ((option_flag = getopt(argc, argv, "stdf:")) != -1)
   {
     switch (option_flag)
     {
@@ -51,6 +55,9 @@ int main(int argc, char **argv)
 #ifdef YYDEBUG
       yydebug = 1;
 #endif
+      break;
+    case 's':
+      print_sym_table = true;
       break;
     case '?':
       std::cout << "invalid command line option " << option_flag << std::endl;
@@ -76,10 +83,13 @@ int main(int argc, char **argv)
 
   fclose(yyin);
 
-  std::list<Symbol_table> sym_table_list;
+  /*  Create symbol table list and allocate table for global variables */
+  Program_symbol_table prog_sym_table;
 
   Print_AST_visitor print_visitor;
-  Dec_before_use dec_visitor(sym_table_list);
+  Dec_before_use dec_visitor(prog_sym_table);
+  Type_checker type_visitor(prog_sym_table);
+  Return_checker return_visitor;
 
   if (print_AST)
   {
@@ -88,11 +98,29 @@ int main(int argc, char **argv)
 
   root->accept(dec_visitor);
 
-  if (!dec_visitor.global_parse_status())
+  if (print_sym_table) {
+    prog_sym_table.print_prog_sym_table();
+  }
+
+  prog_sym_table.reset_sym_table_scopes();
+  root->accept(type_visitor);
+  root->accept(return_visitor);
+
+  if (!dec_visitor.parse_status())
   {
-    std::cout << "Error while parsing, exiting" << std::endl;
+    std::cout << "Error, var used before it was declared, exiting" << std::endl;
     return -1;
   } 
+
+  if (!return_visitor.parse_status()) {
+    std::cout << "Error, function has issues with return statements, exiting" << std::endl;
+    return -1;
+  }
+
+  if (!type_visitor.parse_status()) {
+    std::cout << "Error with type checker, exiting " << std::endl;
+    return -1;
+  }
 
   //dec_visitor.gen_3_code(root);
   //dec_visitor.print();

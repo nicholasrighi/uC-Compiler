@@ -19,22 +19,16 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-/*
-*/
 void Return_checker::dispatch(Array_access &node)
 {
   /* do nothing */
 }
 
-/*
-*/
 void Return_checker::dispatch(Array_dec &node)
 {
   /* do nothing */
 }
 
-/*
-*/
 void Return_checker::dispatch(Binop_dec &node)
 {
   /* do nothing */
@@ -45,20 +39,18 @@ void Return_checker::dispatch(Binop_dec &node)
 */
 void Return_checker::dispatch(Func_dec &node)
 {
-  /* set this to false to reset the visitor */
+  /* set both bools to false to reset the visitor */
   m_found_return_for_all_paths = false;
   m_returns = false;
 
-  /* search sub statements for valid paths */
   node.m_func_body->accept(*this);
 
-  if (!m_found_return_for_all_paths) {
+  if (!m_found_return_for_all_paths)
+  {
     std::cout << "Error, function " << node.get_name() << " doesn't return through all control flow " << std::endl;
   }
 }
 
-/*
-*/
 void Return_checker::dispatch(Func_ref &node)
 {
   /* do nothing */
@@ -76,10 +68,13 @@ void Return_checker::dispatch(If_dec &node)
   bool if_false_has_return;
 
   /* if there's no else part, then we don't have a guaranteed control flow (since the if statement might not be executed) */
-  if (node.m_stmt_if_false == nullptr) {
-     m_returns = false;
-     return;
-  } else {
+  if (node.m_stmt_if_false == nullptr)
+  {
+    m_returns = false;
+    return;
+  }
+  else
+  {
     node.m_stmt_if_false->accept(*this);
     if_false_has_return = m_returns;
   }
@@ -88,8 +83,6 @@ void Return_checker::dispatch(If_dec &node)
   m_returns = if_true_has_return && if_false_has_return;
 }
 
-/*
-*/
 void Return_checker::dispatch(Number &node)
 {
   /* do nothing */
@@ -112,7 +105,7 @@ void Return_checker::dispatch(Stmt_dec &node)
   for (auto sub_stmt = node.m_sub_expressions.rbegin(); sub_stmt != node.m_sub_expressions.rend(); sub_stmt++)
   {
     (*sub_stmt)->accept(*this);
-    
+
     /* if we've found a guarenteed return path then return that fact to that caller */
     if (m_returns)
     {
@@ -125,22 +118,16 @@ void Return_checker::dispatch(Stmt_dec &node)
   m_returns = false;
 }
 
-/*
-*/
 void Return_checker::dispatch(Unop_dec &node)
 {
   /* do nothing */
 }
 
-/*
-*/
 void Return_checker::dispatch(Var_dec &node)
 {
   /* do nothing */
 }
 
-/*
-*/
 void Return_checker::dispatch(Var_ref &node)
 {
   /* do nothing */
