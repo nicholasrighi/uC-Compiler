@@ -19,6 +19,22 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
+/* returns the next avaliable temporary variable */
+std::string Three_addr_gen::gen_temp()
+{
+  int stored_index = m_temp_index;
+  m_temp_index++;
+  return "t" + std::to_string(stored_index);
+}
+
+/* Returns the next avaliable label  */
+std::string Three_addr_gen::gen_label()
+{
+  int stored_index = m_label_index;
+  m_label_index++;
+  return "L" + std::to_string(stored_index);
+}
+
 void Three_addr_gen::print_IR_code()
 {
   for (three_addr_code_entry IR_entry : m_intermediate_rep)
@@ -51,7 +67,7 @@ void Three_addr_gen::print_IR_code()
 /*
   Assign symbol table and init first temp variable to 0 and first label entry to 0
 */
-Three_addr_gen::Three_addr_gen(Symbol_table *sym_table) : m_temp_index(0), m_label_index(0), m_sym_table(sym_table) {}
+Three_addr_gen::Three_addr_gen(Program_symbol_table& sym_table, std::vector<three_addr_code_entry>& IR_code) : m_temp_index(0), m_label_index(0), m_sym_table(sym_table), m_intermediate_rep(IR_code) {}
 
 /*
   Computes IR for access expression and then assigns the resulting array access to a new temporary
@@ -127,14 +143,10 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::DIVIDE, left_temp, right_temp));
     return;
   }
-  /* assignements require that we load a value from the right hand side into the address of the left hand side */
   else if (node.m_op == "=")
   {
     Three_addr_var loaded_temp(gen_temp());
-    /* Loads the value from the address specified by the right side of = operator into a temporary */
-    m_intermediate_rep.push_back(std::make_tuple(loaded_temp, Three_addr_OP::LOAD, right_temp, Three_addr_var()));
-    
-    /*  Store the value of that temporary into the address specified by the left side of the = operator */
+    m_intermediate_rep.push_back(std::make_tuple(loaded_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::STORE, loaded_temp, left_temp));
   }
 }
@@ -162,15 +174,10 @@ void Three_addr_gen::dispatch(Number &node)
 
 void Three_addr_gen::dispatch(Return_dec &node)
 {
-  /* calculate temporary for body */
   node.m_return_value->accept(*this);
 
-  /*  load temporary from body into a new temporary (must be in a register to be returned) */
   Three_addr_var load_temp(gen_temp());
-
-  m_intermediate_rep.push_back(std::make_tuple(load_temp, Three_addr_OP::LOAD, m_last_entry, Three_addr_var()));
-
-  /*  return that temporary variable */
+  m_intermediate_rep.push_back(std::make_tuple(load_temp, Three_addr_OP::ASSIGN, m_last_entry, Three_addr_var()));
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, load_temp, Three_addr_var()));
 
   m_last_entry = load_temp;
@@ -214,6 +221,9 @@ std::string three_op_to_string(Three_addr_OP op)
   else if (op == Three_addr_OP::LOAD)
   {
     return "LOAD";
+  }
+  else if (op == Three_addr_OP::ASSIGN) {
+    return "ASSIGN";
   }
   else if (op == Three_addr_OP::STORE)
   {

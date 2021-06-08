@@ -25,7 +25,7 @@ public:
    /* 
      Adds a variable of the specified type to the most nested symbol table. Returns false if
      the variable was already defined. Returns true otherwise 
-   */
+  */
    bool add_var(std::string name, sym_table_entry sym_entry);
 
    /* 

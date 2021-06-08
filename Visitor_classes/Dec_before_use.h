@@ -8,9 +8,6 @@
 
 // local files
 #include "../Supporting_classes/Program_symbol_table.h"
-#include "Type_checker.h"
-#include "Return_checker.h"
-#include "Three_addr_gen.h"
 
 class Dec_before_use : public Abstract_visitor
 {

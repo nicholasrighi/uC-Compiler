@@ -21,7 +21,7 @@ public:
       Takes an input list of 3 addr codes, converts the 3 addr codes to x86-64 assembly, and allocates
       physical resgisters to the resulting assembly 
   */
-  void gen_asm(std::list three_addr_codes);
+  void gen_asm(std::vector three_addr_codes);
 
 private:
   std::ofstream asm_file;
