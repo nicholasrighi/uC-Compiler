@@ -49,7 +49,7 @@ void Program_symbol_table::set_search_func(std::string func_name)
 
 bool Program_symbol_table::add_function(std::string func_name) {
 
-  if (m_function_sym_table.insert({func_name, Symbol_table {}}).second) {
+  if (m_function_sym_table.insert({func_name, Function_symbol_table{}}).second) {
     m_cur_func_iter = m_function_sym_table.find(func_name);
     return true;
   }

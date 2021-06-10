@@ -41,7 +41,11 @@ public:
   /* determine if this object has valid state, which means it either holds a constant or a temporary variable name */
   bool is_valid()
   {
-    return m_constant || m_temp_var;
+    return m_constant.has_value() || m_temp_var.has_value();
+  }
+
+  bool is_string() {
+    return m_temp_var.has_value();
   }
 
   std::optional<int> m_constant;

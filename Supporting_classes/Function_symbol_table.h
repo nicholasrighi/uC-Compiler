@@ -17,10 +17,10 @@
 */
 using sym_table_entry = std::tuple<Var_dec *, Var_storage, int>;
 
-class Symbol_table
+class Function_symbol_table
 {
 public:
-   Symbol_table();
+   Function_symbol_table();
 
    /* 
      Adds a variable of the specified type to the most nested symbol table. Returns false if

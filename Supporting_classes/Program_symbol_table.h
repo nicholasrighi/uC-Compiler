@@ -4,7 +4,7 @@
 #include <unordered_map>
 
 /*  Local references */
-#include "Symbol_table.h"
+#include "Function_symbol_table.h"
 
 class Program_symbol_table
 {
@@ -57,14 +57,14 @@ public:
     void reset_sym_table_scopes();
 
     /*  Points to the function whose symbol table will be examined when get_var_dec is called */
-    std::unordered_map<std::string, Symbol_table>::iterator m_cur_func_iter;
+    std::unordered_map<std::string, Function_symbol_table>::iterator m_cur_func_iter;
 
     /*  Prints every symbol table */
     void print_prog_sym_table();
 
 private:
     /*  Stores all global variable declerations */
-    Symbol_table m_global_sym_table;
+    Function_symbol_table m_global_sym_table;
     /*  Stores symbol tables for functions, mapping function name to function symbol table */
-    std::unordered_map<std::string, Symbol_table> m_function_sym_table;
+    std::unordered_map<std::string, Function_symbol_table> m_function_sym_table;
 };

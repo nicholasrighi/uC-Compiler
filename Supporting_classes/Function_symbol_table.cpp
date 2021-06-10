@@ -1,16 +1,16 @@
 // Implements
-#include "Symbol_table.h"
+#include "Function_symbol_table.h"
 
 // System includes
 #include <iostream>
 
-Symbol_table::Symbol_table()
+Function_symbol_table::Function_symbol_table()
 {
   m_chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
   m_table_level = 0; 
 }
 
-bool Symbol_table::add_var(std::string name, sym_table_entry sym_entry)
+bool Function_symbol_table::add_var(std::string name, sym_table_entry sym_entry)
 {
   {
     if (m_chained_sym_table.front().count(name) >= 1)
@@ -22,7 +22,7 @@ bool Symbol_table::add_var(std::string name, sym_table_entry sym_entry)
   }
 }
 
-std::optional<Var_dec *> Symbol_table::get_var_dec(std::string name)
+std::optional<Var_dec *> Function_symbol_table::get_var_dec(std::string name)
 {
   /* only start checking at the currently recorded scope, not the most nested scope */
   for (int cur_index = m_table_level; cur_index >= 0; cur_index--)
@@ -37,7 +37,7 @@ std::optional<Var_dec *> Symbol_table::get_var_dec(std::string name)
   return std::nullopt;
 }
 
-void Symbol_table::print_sym_table()
+void Function_symbol_table::print_sym_table()
 {
   for (auto &tables : m_chained_sym_table)
   {
@@ -48,19 +48,19 @@ void Symbol_table::print_sym_table()
   }
 }
 
-void Symbol_table::add_scope()
+void Function_symbol_table::add_scope()
 {
   m_chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
   /*  need the iterator to point to the new most nested scope */
   m_table_level++;
 }
 
-void Symbol_table::increase_scope_depth()
+void Function_symbol_table::increase_scope_depth()
 {
   m_table_level--;
 }
 
-void Symbol_table::decrease_scope_depth()
+void Function_symbol_table::decrease_scope_depth()
 {
   /*  
       doesn't remove the most nested symbol table from the list, only ensures that the more nested scope(s) 
@@ -69,6 +69,6 @@ void Symbol_table::decrease_scope_depth()
   m_table_level++;
 }
 
-void Symbol_table::reset_scope() {
+void Function_symbol_table::reset_scope() {
   m_table_level = 0;
 }
