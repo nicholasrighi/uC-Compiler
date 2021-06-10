@@ -52,7 +52,4 @@ private:
 
   /*  indicates if variables should be defined as global */
   bool m_global_var_flag;
-
-  /*  the offset of the next variable from the base pointer */
-  int m_bsp_offset;
 };

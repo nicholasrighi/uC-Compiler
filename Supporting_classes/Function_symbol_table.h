@@ -25,8 +25,8 @@ public:
    /* 
      Adds a variable of the specified type to the most nested symbol table. Returns false if
      the variable was already defined. Returns true otherwise 
-  */
-   bool add_var(std::string name, sym_table_entry sym_entry);
+   */
+   bool add_var(std::string name, Var_dec* var_dec, Var_storage var_storage);
 
    /* 
      Returns an optional containing the variable decleration of the specified variable. If the
@@ -71,4 +71,10 @@ public:
       as they traverse the AST
    */
    int m_table_level;
+
+   /*    
+      The offset that the next local variable will be given when added to the symbol table 
+      This value isn't used if the function_symbol_table is holding global variables
+   */
+   int m_local_var_offset;
 };

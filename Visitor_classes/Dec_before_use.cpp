@@ -20,7 +20,7 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table) : m_parse_flag(true), m_prog_sym_table(program_sym_table), m_bsp_offset(0)
+Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table) : m_parse_flag(true), m_prog_sym_table(program_sym_table)
 {
 
 }
@@ -52,7 +52,7 @@ void Dec_before_use::dispatch(Array_dec &node)
 
     if (m_global_var_flag)
     {
-        if (!m_prog_sym_table.add_global_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+        if (!m_prog_sym_table.add_global_var(node.get_name(), &node))
         {
             std::cout << "Redeclared global array " << node.get_name() << std::endl;
             m_parse_flag = false;
@@ -60,14 +60,10 @@ void Dec_before_use::dispatch(Array_dec &node)
     }
     else
     {
-        if (!m_prog_sym_table.add_local_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+        if (!m_prog_sym_table.add_local_var(node.get_name(), &node))
         {
             std::cout << "Redeclared local array " << node.get_name() << std::endl;
             m_parse_flag = false;
-        }
-        else
-        {
-            m_bsp_offset += node.m_array_size;
         }
     }
 }
@@ -94,7 +90,7 @@ void Dec_before_use::dispatch(Func_dec &node)
     m_global_var_flag = false;
 
     /*  Functions need to be added to the global symbol table to ensure they're accesible outside of the current scope */
-    if (!m_prog_sym_table.add_global_var(node.get_name(), sym_table_entry(&node, Var_storage::GLOBAL, 0)))
+    if (!m_prog_sym_table.add_global_var(node.get_name(), &node))
     {
         std::cout << "Error, variable with name '" << node.get_name() << "' already declared" << std::endl;
         m_parse_flag = false;
@@ -201,7 +197,7 @@ void Dec_before_use::dispatch(Var_dec &node)
 
     if (m_global_var_flag)
     {
-        if (!m_prog_sym_table.add_global_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
+        if (!m_prog_sym_table.add_global_var(node.get_name(), &node)) 
         {
             std::cout << "Redeclared global variable " << node.get_name() << std::endl;
             m_parse_flag = false;
@@ -209,11 +205,7 @@ void Dec_before_use::dispatch(Var_dec &node)
     }
     else
     {
-        if (m_prog_sym_table.add_local_var(node.get_name(), sym_table_entry(&node, storage_type, m_bsp_offset)))
-        {
-            m_bsp_offset += 8;
-        }
-        else
+        if (!m_prog_sym_table.add_local_var(node.get_name(), &node))
         {
             std::cout << "Redeclared local variable " << node.get_name() << std::endl;
             m_parse_flag = false;

@@ -10,14 +10,16 @@ Function_symbol_table::Function_symbol_table()
   m_table_level = 0; 
 }
 
-bool Function_symbol_table::add_var(std::string name, sym_table_entry sym_entry)
+bool Function_symbol_table::add_var(std::string name, Var_dec* var_dec, Var_storage var_storage)
 {
+  sym_table_entry sym_entry(var_dec, var_storage, m_local_var_offset);
   {
     if (m_chained_sym_table.front().count(name) >= 1)
     {
       return false;
     }
     m_chained_sym_table.front().insert({name, sym_entry});
+    m_local_var_offset += 8;
     return true;
   }
 }

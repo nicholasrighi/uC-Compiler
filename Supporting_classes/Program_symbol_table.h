@@ -24,7 +24,7 @@ public:
       Returns true if a variable with var_name hasn't been declared in the most nested scope, 
       and false if a variable with var_name has been declared in the most nested scope
     */
-    bool add_global_var(std::string var_name, sym_table_entry sym_entry);
+    bool add_global_var(std::string var_name, Var_dec* var_dec);
 
     /*  
       Adds the mapping from var_name to sym_entry into the Symbol table specified by m_cur_func_iter.
@@ -32,7 +32,7 @@ public:
       hasn't been declared in the most nested scope, and false if a variable with var_name has been 
       declared in the most nested scope
     */
-    bool add_local_var(std::string var_name, sym_table_entry sym_entry);
+    bool add_local_var(std::string var_name, Var_dec* var_dec); 
 
     /*  
       Sets m_cur_func_iter to the entry in m_function_sym_table with the specified func_name. If

@@ -27,19 +27,19 @@ std::optional<Var_dec *> Program_symbol_table::get_var_dec(std::string var_name)
   return m_global_sym_table.get_var_dec(var_name);
 }
 
-bool Program_symbol_table::add_global_var(std::string name, sym_table_entry sym_entry)
+bool Program_symbol_table::add_global_var(std::string name, Var_dec* var_dec)
 {
-  return m_global_sym_table.add_var(name, sym_entry);
+  return m_global_sym_table.add_var(name, var_dec, Var_storage::GLOBAL);
 }
 
-bool Program_symbol_table::add_local_var(std::string name, sym_table_entry sym_entry)
+bool Program_symbol_table::add_local_var(std::string name, Var_dec* var_dec)
 {
   if (m_cur_func_iter == m_function_sym_table.end())
   {
     return false;
   }
 
-  return m_cur_func_iter->second.add_var(name, sym_entry);
+  return m_cur_func_iter->second.add_var(name, var_dec, Var_storage::LOCAL);
 }
 
 void Program_symbol_table::set_search_func(std::string func_name)
