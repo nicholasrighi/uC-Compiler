@@ -152,8 +152,8 @@ funbody         : "{" locals stmts "}" {
                                         $$ = new Stmt_dec; 
                                         $$->append_stmt_list($2);
                                         $$->append_stmt_list($3);
-                                        free($2);
-                                        free($3);
+                                        delete($2);
+                                        delete($3);
                                        }
 
                 | ";"                  {$$ = nullptr;}

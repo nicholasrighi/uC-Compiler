@@ -20,7 +20,7 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table) : m_parse_flag(true), m_prog_sym_table(program_sym_table)
+Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table) : m_prog_sym_table(program_sym_table)
 {
 
 }
@@ -89,16 +89,18 @@ void Dec_before_use::dispatch(Func_dec &node)
 
     m_global_var_flag = false;
 
-    /*  Functions need to be added to the global symbol table to ensure they're accesible outside of the current scope */
+    /*  
+        Function names need to be added to the global symbol table to allow them to 
+        be called inside other functions
+    */
     if (!m_prog_sym_table.add_global_var(node.get_name(), &node))
     {
-        std::cout << "Error, variable with name '" << node.get_name() << "' already declared" << std::endl;
+        std::cout << "Error, function with name '" << node.get_name() << "' already declared" << std::endl;
         m_parse_flag = false;
         return;
     }
 
-    /* chains new symbol table for local function scope */
-    m_prog_sym_table.m_cur_func_iter->second.add_scope();
+    m_prog_sym_table.add_scope_to_cur_func_sym_table();
 
     /*  add function args to symbol table */
     if (node.m_args != nullptr)
@@ -115,7 +117,8 @@ void Dec_before_use::dispatch(Func_dec &node)
 }
 
 /*
-    Checks that the function has been declared. If the function hasn't been declared, sets m_parse_flag to false
+    Checks that the function has been declared. If the function hasn't been declared, 
+    sets m_parse_flag to false
 */
 void Dec_before_use::dispatch(Func_ref &node)
 {
@@ -135,7 +138,7 @@ void Dec_before_use::dispatch(If_dec &node)
     node.m_cond->accept(*this);
 
     /* add a level to the symbol table for the inside of the if statement */
-    m_prog_sym_table.m_cur_func_iter->second.add_scope();
+    m_prog_sym_table.add_scope_to_cur_func_sym_table();
 
     if (node.m_stmt_if_true != nullptr)
     {
@@ -237,7 +240,7 @@ void Dec_before_use::dispatch(While_dec &node)
     node.m_cond->accept(*this);
 
     /*  Add new scope for the inside of the while loop body */
-    m_prog_sym_table.m_cur_func_iter->second.add_scope();
+    m_prog_sym_table.add_scope_to_cur_func_sym_table();
 
     if (node.m_body != nullptr)
     {

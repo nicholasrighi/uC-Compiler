@@ -19,7 +19,7 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-Type_checker::Type_checker(Program_symbol_table& sym_table) : m_prog_sym_table(sym_table), m_parse_flag(true) {}
+Type_checker::Type_checker(Program_symbol_table &sym_table) : m_prog_sym_table(sym_table), m_parse_flag(true) {}
 
 bool Type_checker::parse_status() { return m_parse_flag; }
 
@@ -98,6 +98,12 @@ void Type_checker::dispatch(Func_dec &node)
 
   /* save function return type so we can check it later when examining return statements */
   m_cur_func_ret_type = node.m_var_type;
+
+  if (!m_prog_sym_table.increment_scope_of_cur_fun_sym_table())
+  {
+    std::cout << "Error, trying to increment the scope of a function for checking function body, but function body has no nested scope "
+              << std::endl;
+  }
 
   node.m_func_body->accept(*this);
 }
@@ -253,7 +259,15 @@ void Type_checker::dispatch(Var_dec &node)
 void Type_checker::dispatch(Var_ref &node)
 {
   std::optional<Var_dec *> ref = m_prog_sym_table.get_var_dec(node.m_name);
-  m_ret_type = (*ref)->m_var_type;
+  if (ref.has_value())
+  {
+    m_ret_type = (*ref)->m_var_type;
+  }
+  else
+  {
+    std::cout << "Error, variable reference '" << node.m_name
+              << "' not declared in symbol table " << std::endl;
+  }
 }
 
 /*

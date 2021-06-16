@@ -11,9 +11,11 @@
 #include "../AST_classes/Var_type_decs.h"
 
 /* 
-   A symbol table entry is composed of the variable declaration, the 
-   variable's storage location in memory, and the variable's offset from the base pointer
-   (the offset is only used if the variable is local, and thus on the stack)
+   Symbol table entry is 
+      Var_dec* =    pointer to var_dec node
+      Var_storage = determines if variable is global or local storage
+      int =         variable's offset from the base pointer of the current stack frame.
+                    only relevant if the variable is LOCAL, not used if GLOBAL
 */
 using sym_table_entry = std::tuple<Var_dec *, Var_storage, int>;
 
@@ -34,6 +36,12 @@ public:
    */
    std::optional<Var_dec *> get_var_dec(std::string name);
 
+   /*
+      Returns an optional containing the variable's offset from the base pointer. If the 
+      variable isn't in the symbol table, then the returned optional contains nothing
+   */
+   std::optional<int> get_var_offset(std::string name);
+
    /* prints all symbols defined in the symbol table. Used for debugging only */
    void print_sym_table();
 
@@ -45,22 +53,20 @@ public:
    void add_scope();
 
    /*
-      Moves m_table_level to the next deepest scope of the symbol table
+      Sets m_table_level to the next most nested symbol table. If m_table_level is an invalid
+      index into m_chained_symbol_table as a result of incrementing m_table_level, returns false.
+      Otherwise returns true
    */
-   void increase_scope_depth();
-
-   /*
-      Moves m_table_level to the next shallowest scope of the symbol table
-   */
-   void decrease_scope_depth();
+   bool increment_scope();
 
    /*
       Moves m_table_level back to the least nested scope of the symbol table
    */
    void reset_scope();
 
+private:
    /*
-      Stores a list of maps that associate a variable name with a symbol table entry. Front of 
+      Stores a vector of maps that associate a variable name with a symbol table entry. Front of 
       the list is the least nested scope, back of the list is the most nested scope
    */
    std::vector<std::unordered_map<std::string, sym_table_entry>> m_chained_sym_table;
@@ -70,11 +76,11 @@ public:
       This is used by visitors to allow them to go into more nested scopes of the symbol table
       as they traverse the AST
    */
-   int m_table_level;
+   int m_table_level = 0;
 
    /*    
       The offset that the next local variable will be given when added to the symbol table 
       This value isn't used if the function_symbol_table is holding global variables
    */
-   int m_local_var_offset;
+   int m_local_var_offset = 0;
 };

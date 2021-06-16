@@ -42,14 +42,14 @@ private:
       holds the status of the parser (true if parser sucess or if no parse has been run, 
       false if failure)
   */
-  bool m_parse_flag;
+  bool m_parse_flag = true;
+
+  /*  indicates if variables should be defined as global */
+  bool m_global_var_flag = true;
 
   /*  
       each entry in the list is the symbol table for a seperate function. The first entry in the list is the 
       symbol table for the global variables
   */
   Program_symbol_table& m_prog_sym_table;
-
-  /*  indicates if variables should be defined as global */
-  bool m_global_var_flag;
 };

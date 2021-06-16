@@ -176,11 +176,7 @@ void Three_addr_gen::dispatch(Return_dec &node)
 {
   node.m_return_value->accept(*this);
 
-  Three_addr_var load_temp(gen_temp());
-  m_intermediate_rep.push_back(std::make_tuple(load_temp, Three_addr_OP::ASSIGN, m_last_entry, Three_addr_var()));
-  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, load_temp, Three_addr_var()));
-
-  m_last_entry = load_temp;
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, m_last_entry, Three_addr_var()));
 }
 
 void Three_addr_gen::dispatch(Stmt_dec &node)
