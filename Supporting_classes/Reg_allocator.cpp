@@ -56,6 +56,7 @@ Reg_allocator::Reg_allocator(std::string file_name, Program_symbol_table &sym_ta
   m_asm_file << ".globl main" << std::endl;
   m_asm_file << "main:" << std::endl;
   m_asm_file << "\tmov %rsp, %rbp" << std::endl;
+  m_asm_file << "\tadd $-8, %rbp" << std::endl;
 
   /*for (int i = 0; i < static_cast<int>(x86_Register::RDI); i++)*/
   for (int i = 0; i < 4; i++)
@@ -132,6 +133,7 @@ void Reg_allocator::generate_CFG()
   This is a stub that needs to be fleshed out later. Does nothing currently
 */
 void Reg_allocator::create_live_out()
+
 {
   /*
   bool changed = true;
