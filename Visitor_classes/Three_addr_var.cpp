@@ -7,7 +7,8 @@ Three_addr_var::Three_addr_var() : m_constant(std::nullopt), m_temp_var(std::nul
 Three_addr_var::Three_addr_var(int val) : m_constant(val), m_temp_var(std::nullopt) {}
 
 /*  Used to indicate that the Three_addr_var is holding the name of a scalar variable, either temporary or named */
-Three_addr_var::Three_addr_var(std::string temp_var) : m_constant(std::nullopt), m_temp_var(temp_var) {}
+Three_addr_var::Three_addr_var(std::string temp_var, bool is_array)
+    : m_constant(std::nullopt), m_temp_var(temp_var), m_is_array(is_array) {}
 
 /*  
       Returns the string representation of the stored variable or constant. If neither a 

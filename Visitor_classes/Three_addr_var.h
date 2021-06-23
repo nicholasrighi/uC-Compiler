@@ -12,8 +12,11 @@ public:
   /*  Used to indicate that the Three_addr_var is holding a constant */
   Three_addr_var(int val);
 
-  /*  Used to indicate that the Three_addr_var is holding the name of a scalar variable, either temporary or named */
-  Three_addr_var(std::string temp_var);
+  /*  
+    Used to indicate that the Three_addr_var is holding the name of a scalar variable, 
+    either temporary or named 
+  */
+  Three_addr_var(std::string temp_var, bool is_array = false);
 
   /*  
       Returns the string representation of the stored variable or constant. If neither a 
@@ -27,6 +30,12 @@ public:
   /*  returns true if the Three_addr_var holds a string, flase otherwise */
   bool is_string() const;
 
+  /*  returns true if the Three_addr_var contains an array, false otherwise */
+  bool is_array() const;
+
+  /* returns true if the Three_addr_var contains a constant, false otherwise */
+  bool is_const() const;
+
   /*  
       This returns true only if both Three_addr_var objects contain the same
       data or both are empty
@@ -34,6 +43,8 @@ public:
   bool operator==(const Three_addr_var &other) const;
   bool operator!=(const Three_addr_var &other) const;
 
+private:
   std::optional<int> m_constant;
   std::optional<std::string> m_temp_var;
+  bool m_is_array;
 };

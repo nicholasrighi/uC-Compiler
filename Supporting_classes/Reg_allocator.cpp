@@ -49,9 +49,11 @@ std::string x86_Register_to_string(x86_Register reg)
   }
 }
 
-Reg_allocator::Reg_allocator(std::string file_name, Program_symbol_table &sym_table, std::vector<three_addr_code_entry> &three_addr_code) : m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code)
+Reg_allocator::Reg_allocator(std::string asm_file_name, std::ofstream &debug_log,
+                             Program_symbol_table &sym_table, std::vector<three_addr_code_entry> &three_addr_code)
+    : m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code), m_debug_log(debug_log)
 {
-  m_asm_file.open(file_name, std::ofstream::trunc);
+  m_asm_file.open(asm_file_name, std::ofstream::trunc);
 
   m_asm_file << ".globl main" << std::endl;
   m_asm_file << "main:" << std::endl;
@@ -63,8 +65,8 @@ Reg_allocator::Reg_allocator(std::string file_name, Program_symbol_table &sym_ta
   {
     x86_Register cur_reg = static_cast<x86_Register>(i);
     m_allocated_reg_data.push_back(std::make_tuple(Three_addr_var(), cur_reg, std::nullopt));
-    m_free_reg_stack.push(cur_reg);
     m_register_free_status.push_back(true);
+    m_free_reg_stack.push(cur_reg);
   }
 }
 
@@ -81,6 +83,9 @@ Reg_allocator::~Reg_allocator()
 */
 void Reg_allocator::generate_asm_file()
 {
+  m_debug_log << "Start of debug log for assembly\n"
+              << std::endl;
+
   generate_CFG();
   for (auto &CFG_node : m_cfg_graph)
   {
@@ -120,6 +125,21 @@ void Reg_allocator::generate_varkill_uevar(CFG_node &node)
   }
 }
 
+Three_addr_var &Reg_allocator::reg_entry_var(register_entry &reg_entry)
+{
+  return std::get<0>(reg_entry);
+}
+
+x86_Register &Reg_allocator::reg_entry_reg(register_entry &reg_entry)
+{
+  return std::get<1>(reg_entry);
+}
+
+std::optional<int> &Reg_allocator::reg_entry_dist(register_entry &reg_entry)
+{
+  return std::get<2>(reg_entry);
+}
+
 /*  
     This is a stub that need to be fleshed out later. It assumes the entire program is one basic
     block. 
@@ -150,28 +170,30 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
   switch (op)
   {
   case Three_addr_OP::LOAD:
-    m_asm_file << "\tmov $" << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
                << std::endl;
     break;
   case Three_addr_OP::STORE:
-    m_asm_file << "Storing value from " << x86_Register_to_string(reg_1) << " into "
+    m_debug_log << "Storing value from " << x86_Register_to_string(reg_1) << " into "
                << x86_Register_to_string(result_reg) << std::endl;
     break;
   case Three_addr_OP::ADD:
-    m_asm_file << "\tadd " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(reg_2)
+    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
                << std::endl;
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
+    m_asm_file << "\tadd " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
                << std::endl;
     break;
   case Three_addr_OP::SUB:
-    m_asm_file << "Subtarcting " << x86_Register_to_string(reg_1) << " from "
-               << x86_Register_to_string(reg_2) << " and storing it in "
-               << x86_Register_to_string(result_reg) << std::endl;
+    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+               << std::endl;
+    m_asm_file << "\tsub " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
+               << std::endl;
     break;
   case Three_addr_OP::MULT:
-    m_asm_file << "Multiplying values from " << x86_Register_to_string(reg_1) << " and "
-               << x86_Register_to_string(reg_2) << " into "
-               << x86_Register_to_string(result_reg) << std::endl;
+    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+               << std::endl;
+    m_asm_file << "\timul " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
+               << std::endl;
     break;
   case Three_addr_OP::DIVIDE:
     m_asm_file << "Diving values from " << x86_Register_to_string(reg_1) << " and "
@@ -183,13 +205,20 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
                << "%rax" << std::endl;
     m_asm_file << "\tret";
     break;
+  case Three_addr_OP::ASSIGN:
+    if (reg_1 != result_reg)
+    {
+      m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+                 << std::endl;
+    }
+    break;
   default:
     m_asm_file << "Error, invalid op code passed to gen_asm_line " << std::endl;
     break;
   }
 }
 
-void Reg_allocator::generate_assembly_from_CFG_node(CFG_node &node)
+void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
 {
   for (int i = node.m_start_index; i < node.m_end_index; i++)
   {
@@ -203,61 +232,73 @@ void Reg_allocator::generate_assembly_from_CFG_node(CFG_node &node)
 
     if (var_1.is_valid())
     {
-      reg_1 = ensure(var_1);
+      reg_1 = ensure(var_1, i + 1, node);
     }
 
     if (var_2.is_valid())
     {
-      reg_2 = ensure(var_2);
+      reg_2 = ensure(var_2, i + 1, node);
     }
 
     if (var_result.is_valid())
     {
-      reg_result = allocate(var_result);
+      reg_result = allocate_reg(var_result, i + 1, node);
     }
 
     gen_asm_line(reg_result, std::get<1>(m_three_addr_code[i]), reg_1, reg_2);
 
-    std::optional<int> next_var_1_use = dist_to_next_var_occurance(var_1, i, node);
-    std::optional<int> next_var_2_use = dist_to_next_var_occurance(var_2, i, node);
-    std::optional<int> next_var_result_use = dist_to_next_var_occurance(var_result, i, node);
+    if (var_1.is_valid())
+    {
+      std::optional<int> next_var_1_use = dist_to_next_var_occurance(var_1, i + 1, node);
+      if (next_var_1_use)
+      {
+        std::cout << "Variable " << var_1.to_string() << " is used again at instruction "
+                  << std::to_string(next_var_1_use.value()) << std::endl;
+      }
+      else
+      {
+        std::cout << "Variable  " << var_1.to_string() << " isn't used again in this block" << std::endl;
+      }
+      reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1)]) = next_var_1_use.has_value() ? next_var_1_use.value() : INT32_MAX;
+    }
 
-    /*  Assign the next use of each variable. */
-    std::get<2>(m_allocated_reg_data[static_cast<int>(reg_1)]) = next_var_1_use.has_value() ? next_var_1_use.value() : INT32_MAX;
-    std::get<2>(m_allocated_reg_data[static_cast<int>(reg_2)]) = next_var_2_use.has_value() ? next_var_2_use.value() : INT32_MAX;
-    std::get<2>(m_allocated_reg_data[static_cast<int>(reg_result)]) = next_var_result_use.has_value() ? next_var_result_use.value() : INT32_MAX;
+    if (var_2.is_valid())
+    {
+      std::optional<int> next_var_2_use = dist_to_next_var_occurance(var_2, i + 1, node);
+      reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2)]) = next_var_2_use.has_value() ? next_var_2_use.value() : INT32_MAX;
+    }
 
+    if (var_result.is_valid())
+    {
+      std::optional<int> next_var_result_use = dist_to_next_var_occurance(var_result, i + 1, node);
+      reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result)]) = next_var_result_use.has_value() ? next_var_result_use.value() : INT32_MAX;
+    }
     //TODO. Need to free registers. Not sure why done after ensure() in the pseduo code, will
     //look into that later
   }
 }
 
-x86_Register Reg_allocator::ensure(Three_addr_var var_to_be_allocated)
+x86_Register Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated, int start_index, const CFG_node &node)
 {
 
   /*  If a register already contains the value we're searching for, return that register */
   for (register_entry &entry : m_allocated_reg_data)
   {
-    /*  
-        Since ensure is called only when var_to_be_allocated is valid, and freeing a register sets
-        the Three_addr_var in m_allocated_reg_data to invalid, we don't need to check that both 
-        entry and the value in m_allocated_reg_data are valid 
-    */
-    if (std::get<0>(entry) == var_to_be_allocated)
+    if (reg_entry_var(entry) == var_to_be_allocated)
     {
-      return std::get<1>(entry);
+      return reg_entry_reg(entry);
     }
   }
 
-  x86_Register newly_freed_register = allocate(var_to_be_allocated);
+  x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node);
 
-  /*  Load value into register */
+  /*  Load variable into register */
   if (var_to_be_allocated.is_string())
   {
     std::string source_reg_str = x86_Register_to_string(newly_freed_register);
     std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
     m_asm_file << "\tmov -" << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
-    
+    m_debug_log << "loading variable from offset " << var_offset_str << " into register " << source_reg_str << std::endl;
   }
   else
   {
@@ -268,17 +309,19 @@ x86_Register Reg_allocator::ensure(Three_addr_var var_to_be_allocated)
   return newly_freed_register;
 }
 
-x86_Register Reg_allocator::allocate(Three_addr_var var_to_be_allocated)
+x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocated,
+                                         int start_index, const CFG_node &node)
 {
   if (m_free_reg_stack.size() > 0)
   {
     x86_Register free_reg = m_free_reg_stack.top();
     m_free_reg_stack.pop();
 
-    /*  Update poped register to hold var_to_be_allocated */
-    std::get<0>(m_allocated_reg_data.at(static_cast<int>(free_reg))) = var_to_be_allocated;
-    std::get<2>(m_allocated_reg_data.at(static_cast<int>(free_reg))) = std::nullopt;
-    m_register_free_status.at(static_cast<int>(free_reg)) = false;
+    int reg_as_index = static_cast<int>(free_reg);
+
+    reg_entry_var(m_allocated_reg_data.at(reg_as_index)) = var_to_be_allocated;
+    reg_entry_dist(m_allocated_reg_data.at(reg_as_index)) = std::nullopt;
+    m_register_free_status.at(reg_as_index) = false;
 
     return free_reg;
   }
@@ -290,8 +333,8 @@ x86_Register Reg_allocator::allocate(Three_addr_var var_to_be_allocated)
 
     for (int i = 0; i < m_allocated_reg_data.size(); i++)
     {
-      register_entry cur_entry = m_allocated_reg_data[i];
-      std::optional<int> next_reg_use = std::get<2>(cur_entry);
+      register_entry &cur_entry = m_allocated_reg_data[i];
+      std::optional<int> next_reg_use = reg_entry_dist(cur_entry);
 
       if (next_reg_use.has_value() && (next_reg_use.value() > next_furthest_use))
       {
@@ -300,19 +343,21 @@ x86_Register Reg_allocator::allocate(Three_addr_var var_to_be_allocated)
       }
     }
 
-    /*  Only write data in register to memory if that register is holding a temporary variable */
     register_entry &reg_entry_being_freed = m_allocated_reg_data[next_furthest_use_index];
 
-    if (std::get<0>(reg_entry_being_freed).is_string())
+    /*  Only write to memory if register has a temporary variable that is used later in this block */
+    if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(var_to_be_allocated, start_index, node))
     {
-      std::string source_reg_str = x86_Register_to_string(std::get<1>(reg_entry_being_freed));
-      std::string var_offset_str = std::to_string(get_var_offset_cond_add(std::get<0>(reg_entry_being_freed).to_string()));
+      std::string source_reg_str = x86_Register_to_string(reg_entry_reg(reg_entry_being_freed));
+      std::string var_offset_str = std::to_string(get_var_offset_cond_add(reg_entry_var(reg_entry_being_freed).to_string()));
       m_asm_file << "\tmov " << source_reg_str << ", -" << var_offset_str << "(%rbp)" << std::endl;
+      m_debug_log << "storing variable " << reg_entry_var(reg_entry_being_freed).to_string() << " with offset " << var_offset_str
+                  << std::endl;
     }
 
-    std::get<0>(m_allocated_reg_data.at(static_cast<int>(static_cast<x86_Register>(next_furthest_use_index)))) = var_to_be_allocated;
-    std::get<2>(m_allocated_reg_data.at(static_cast<int>(static_cast<x86_Register>(next_furthest_use_index)))) = std::nullopt;
-    m_register_free_status.at(static_cast<int>(static_cast<x86_Register>(next_furthest_use_index))) = false;
+    reg_entry_var(m_allocated_reg_data.at(next_furthest_use_index)) = var_to_be_allocated;
+    reg_entry_dist(m_allocated_reg_data.at(next_furthest_use_index)) = std::nullopt;
+    m_register_free_status.at(next_furthest_use_index) = false;
 
     return static_cast<x86_Register>(next_furthest_use_index);
   }
@@ -321,24 +366,25 @@ x86_Register Reg_allocator::allocate(Three_addr_var var_to_be_allocated)
 void Reg_allocator::free(register_entry &reg_entry)
 {
 
-  int reg_index = static_cast<int>(std::get<1>(reg_entry));
+  int reg_index = static_cast<int>(reg_entry_reg(reg_entry));
 
   /*  Only free register if it hasn't been freed yet  */
   if (!m_register_free_status[reg_index])
   {
-    m_free_reg_stack.push(std::get<1>(reg_entry));
+    m_free_reg_stack.push(reg_entry_reg(reg_entry));
 
     /*  
         Reset reg_entry to empty. Ensures that an entry won't compare to true 
         when iterating through the vector for matching values 
     */
-    std::get<0>(reg_entry) = Three_addr_var();
-    std::get<2>(reg_entry) = std::nullopt;
+    reg_entry_var(reg_entry) = Three_addr_var();
+    reg_entry_dist(reg_entry) = std::nullopt;
     m_register_free_status[reg_index] = true;
   }
 }
 
-std::optional<int> Reg_allocator::dist_to_next_var_occurance(Three_addr_var search_var, int start_index, CFG_node &node)
+std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_var &search_var,
+                                                             int start_index, const CFG_node &node)
 {
   for (int cur_index = start_index; cur_index < node.m_end_index; cur_index++)
   {
@@ -365,7 +411,6 @@ std::optional<int> Reg_allocator::dist_to_next_var_occurance(Three_addr_var sear
 
 int Reg_allocator::get_var_offset_cond_add(std::string var_name)
 {
-
   std::optional<int> var_offset = m_prog_sym_table.get_var_offset(var_name);
 
   if (!var_offset)

@@ -35,61 +35,60 @@ std::string Three_addr_gen::gen_label()
   return "L" + std::to_string(stored_index);
 }
 
-void Three_addr_gen::print_IR_code()
+void Three_addr_gen::print_IR_code(three_addr_code_entry& IR_entry)
 {
-  for (three_addr_code_entry IR_entry : m_intermediate_rep)
-  {
     /*  Print out the new temporary, if one exists */
     if (std::get<0>(IR_entry).is_valid())
     {
-      std::cout << std::get<0>(IR_entry).to_string() << " = ";
+      m_debug_log << std::get<0>(IR_entry).to_string() << " = ";
     }
 
     /*  Print out operator, which will always exist */
-    std::cout << three_op_to_string(std::get<1>(IR_entry)) << " ";
+    m_debug_log << three_op_to_string(std::get<1>(IR_entry)) << " ";
 
     /*  Print out first temporary being used, if it exists */
     if (std::get<2>(IR_entry).is_valid())
     {
-      std::cout << std::get<2>(IR_entry).to_string() << ",";
+      m_debug_log << std::get<2>(IR_entry).to_string() << ",";
     }
 
     /*  Print out second temporary being used, if it exists */
     if (std::get<3>(IR_entry).is_valid())
     {
-      std::cout << std::get<3>(IR_entry).to_string();
+      m_debug_log << std::get<3>(IR_entry).to_string();
     }
 
-    std::cout << std::endl;
-  }
+    m_debug_log << std::endl;
 }
 
 /*
   Assign symbol table and init first temp variable to 0 and first label entry to 0
 */
-Three_addr_gen::Three_addr_gen(Program_symbol_table& sym_table, std::vector<three_addr_code_entry>& IR_code) : m_temp_index(0), m_label_index(0), m_sym_table(sym_table), m_intermediate_rep(IR_code) {}
+Three_addr_gen::Three_addr_gen(std::ofstream &debug_log, Program_symbol_table &sym_table,
+                               std::vector<three_addr_code_entry> &IR_code)
+    : m_temp_index(0), m_label_index(0), m_sym_table(sym_table), m_intermediate_rep(IR_code),
+      m_debug_log(debug_log)
+{
+  m_debug_log << "Start of IR code\n"
+              << std::endl;
+}
 
 /*
-  Computes IR for access expression and then assigns the resulting array access to a new temporary
+    Computes IR code for address of array element
 */
 void Three_addr_gen::dispatch(Array_access &node)
 {
   /*  compute temporary for array access */
   node.m_access_index->accept(*this);
 
-  /*  calculate absolute address for array access */
-
-  /*  
-      Need to multiply value of m_last_entry by 8, since all of our variables are 8 bytes wide.
-  */
+  /*  Need to multiply value of m_last_entry by 8, since all of our variables are 8 bytes wide. */
   Three_addr_var scaled_access_temp(gen_temp());
-
-  three_addr_code_entry scaled_access_index = std::make_tuple(scaled_access_temp, Three_addr_OP::MULT, m_last_entry, Three_addr_var(8));
+  three_addr_code_entry scaled_access_index =
+      std::make_tuple(scaled_access_temp, Three_addr_OP::MULT, m_last_entry, Three_addr_var(8));
 
   Three_addr_var final_addr_temp(gen_temp());
-
-  /*  calculate final address of array access */
-  three_addr_code_entry dest_addr = std::make_tuple(final_addr_temp, Three_addr_OP::ADD, Three_addr_var(node.m_var->m_name), scaled_access_temp);
+  three_addr_code_entry dest_addr =
+      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, Three_addr_var(node.m_var->m_name, true), scaled_access_temp);
 
   m_last_entry = final_addr_temp;
 
@@ -145,10 +144,17 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   }
   else if (node.m_op == "=")
   {
-    Three_addr_var loaded_temp(gen_temp());
-    m_intermediate_rep.push_back(std::make_tuple(loaded_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
-    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::STORE, loaded_temp, left_temp));
+    // TODO. Need to check if the variable is an array. If it is an array, then need to store value to memory
+    // instead of loading it into a register 
+    if (left_temp.is_string()) {
+      m_intermediate_rep.push_back(std::make_tuple(left_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
+    } else {
+      Three_addr_var new_temp = gen_temp();
+      m_intermediate_rep.push_back(std::make_tuple(new_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
+      m_last_entry = new_temp;
+    }
   }
+  print_IR_code(m_intermediate_rep.back());
 }
 
 void Three_addr_gen::dispatch(Func_dec &node)
@@ -177,6 +183,8 @@ void Three_addr_gen::dispatch(Return_dec &node)
   node.m_return_value->accept(*this);
 
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, m_last_entry, Three_addr_var()));
+
+  print_IR_code(m_intermediate_rep.back());
 }
 
 void Three_addr_gen::dispatch(Stmt_dec &node)
@@ -192,6 +200,7 @@ void Three_addr_gen::dispatch(Unop_dec &node)
 {
 }
 
+/*  Don't need to generate any three_addr_code for variable declerations */
 void Three_addr_gen::dispatch(Var_dec &node)
 {
 }
@@ -218,7 +227,8 @@ std::string three_op_to_string(Three_addr_OP op)
   {
     return "LOAD";
   }
-  else if (op == Three_addr_OP::ASSIGN) {
+  else if (op == Three_addr_OP::ASSIGN)
+  {
     return "ASSIGN";
   }
   else if (op == Three_addr_OP::STORE)

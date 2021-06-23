@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <fstream>
 
 // Local includes
 #include "../Supporting_classes/Program_symbol_table.h"
@@ -46,7 +47,8 @@ using three_addr_code_entry = std::tuple<Three_addr_var, Three_addr_OP, Three_ad
 class Three_addr_gen : public Abstract_visitor
 {
 public:
-  Three_addr_gen(Program_symbol_table& sym_table, std::vector<three_addr_code_entry>& IR_code);
+  Three_addr_gen(std::ofstream& debug_log, Program_symbol_table &sym_table,
+                 std::vector<three_addr_code_entry> &IR_code);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -62,9 +64,11 @@ public:
   void dispatch(Var_ref &node) override;
   void dispatch(While_dec &node) override;
 
-  void print_IR_code();
 
 private:
+  /*  writes a three_addr_code entry to m_debug_log */
+  void print_IR_code(three_addr_code_entry& IR_node);
+
   /* returns the next avaliable temporary variable */
   std::string gen_temp();
 
@@ -81,8 +85,11 @@ private:
   int m_label_index;
 
   /*  symbol table for variable definitions */
-  Program_symbol_table& m_sym_table;
+  Program_symbol_table &m_sym_table;
 
   /*  stores the intermediate representation of the program */
-  std::vector<three_addr_code_entry>& m_intermediate_rep;
+  std::vector<three_addr_code_entry> &m_intermediate_rep;
+
+  /*  file that contains output of print_IR_code() */
+  std::ofstream& m_debug_log;
 };

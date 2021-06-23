@@ -3,6 +3,7 @@
 
 /* System includes */
 #include <string>
+#include <fstream>
 
 /* Parser header */
 #include "grammar.tab.h"
@@ -101,16 +102,17 @@ int main(int argc, char **argv)
 
   Program_symbol_table prog_sym_table;
   std::vector<three_addr_code_entry> intermediate_code;
+  std::ofstream debug_log("debug_log.txt", std::ofstream::trunc);
 
   /*  Visitors for generating Three_addr_code and type checking input */
   Print_AST_visitor print_visitor;
   Dec_before_use dec_visitor(prog_sym_table);
   Type_checker type_visitor(prog_sym_table);
   Return_checker return_visitor;
-  Three_addr_gen IR_generator(prog_sym_table, intermediate_code);
+  Three_addr_gen IR_generator(debug_log, prog_sym_table, intermediate_code);
 
   /*  Generates assembly file */
-  Reg_allocator reg_allocator(asm_file_name, prog_sym_table, intermediate_code);
+  Reg_allocator reg_allocator(asm_file_name, debug_log, prog_sym_table, intermediate_code);
 
   if (print_AST)
   {
@@ -149,8 +151,6 @@ int main(int argc, char **argv)
     std::cout << "Error with type checker, exiting " << std::endl;
     return -1;
   }
-
-  IR_generator.print_IR_code();
 
   reg_allocator.generate_asm_file();
 }

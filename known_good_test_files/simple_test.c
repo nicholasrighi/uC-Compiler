@@ -1,3 +1,9 @@
-int main(void) {
-  return 3+4+10+7+3+4+111;
+int main(void)
+{
+  int a;
+  int b;
+  int c;
+  a = 9;
+  b = 4;
+  return a * b;
 }
