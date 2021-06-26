@@ -122,25 +122,21 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   {
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::ADD, left_temp, right_temp));
-    return;
   }
   else if (node.m_op == "-")
   {
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::SUB, left_temp, right_temp));
-    return;
   }
   else if (node.m_op == "*")
   {
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::MULT, left_temp, right_temp));
-    return;
   }
   else if (node.m_op == "/")
   {
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::DIVIDE, left_temp, right_temp));
-    return;
   }
   else if (node.m_op == "=")
   {
@@ -165,7 +161,6 @@ void Three_addr_gen::dispatch(Func_dec &node)
 
 void Three_addr_gen::dispatch(Func_ref &node)
 {
-  //TODO.
 }
 
 void Three_addr_gen::dispatch(If_dec &node)

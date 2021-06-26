@@ -47,15 +47,23 @@ bool Three_addr_var::is_string() const
   return m_temp_var.has_value();
 }
 
+bool Three_addr_var::is_const() const
+{
+  return m_constant.has_value();
+}
+
 bool Three_addr_var::operator==(const Three_addr_var &other) const
 {
-  if (this->is_valid() != other.is_valid()) 
+  if (this->is_valid() != other.is_valid())
   {
     return false;
   }
-  if (this->is_string()) {
+  if (this->is_string())
+  {
     return other.is_string() && (m_temp_var == other.m_temp_var);
-  } else {
+  }
+  else
+  {
     return !other.is_string() && (m_constant == other.m_constant);
   }
 }

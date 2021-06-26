@@ -46,5 +46,5 @@ public:
 private:
   std::optional<int> m_constant;
   std::optional<std::string> m_temp_var;
-  bool m_is_array;
+  bool m_is_array = false;
 };

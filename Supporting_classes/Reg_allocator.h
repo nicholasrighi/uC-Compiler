@@ -71,6 +71,13 @@ public:
   void generate_asm_file();
 
 private:
+
+  /*  Prints the contents of the registers to the debug log */ 
+  void print_register_contents();
+
+  /*  Helper function for printing the next use of a variable to the debug log */
+  void print_next_var_use(Three_addr_var& var, std::optional<int> next_use);
+
   /*  Helper function for retrieving the Three_address var from a register entry */
   Three_addr_var &reg_entry_var(register_entry &);
 

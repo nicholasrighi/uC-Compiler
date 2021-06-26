@@ -60,7 +60,7 @@ Reg_allocator::Reg_allocator(std::string asm_file_name, std::ofstream &debug_log
   m_asm_file << "\tmov %rsp, %rbp" << std::endl;
   m_asm_file << "\tadd $-8, %rbp" << std::endl;
 
-  /*for (int i = 0; i < static_cast<int>(x86_Register::RDI); i++)*/
+  //for (int i = 0; i < static_cast<int>(x86_Register::RDI); i++)
   for (int i = 0; i < 4; i++)
   {
     x86_Register cur_reg = static_cast<x86_Register>(i);
@@ -83,7 +83,7 @@ Reg_allocator::~Reg_allocator()
 */
 void Reg_allocator::generate_asm_file()
 {
-  m_debug_log << "Start of debug log for assembly\n"
+  m_debug_log << "\nStart of debug log for assembly\n"
               << std::endl;
 
   generate_CFG();
@@ -95,6 +95,39 @@ void Reg_allocator::generate_asm_file()
     }
   }
   m_asm_file << std::endl;
+}
+
+void Reg_allocator::print_register_contents()
+{
+  m_debug_log << std::endl;
+  for (register_entry &cur_reg_entry : m_allocated_reg_data)
+  {
+
+    int reg_to_index = static_cast<int>(reg_entry_reg(cur_reg_entry));
+    std::string reg_as_str = x86_Register_to_string(reg_entry_reg(cur_reg_entry));
+    std::optional<int> next_var_use = reg_entry_dist(cur_reg_entry);
+
+    if (m_register_free_status[reg_to_index])
+    {
+      m_debug_log << reg_as_str << ": unallocated" << std::endl;
+    }
+    else
+    {
+      m_debug_log << reg_as_str << ": " << reg_entry_var(cur_reg_entry).to_string()
+                  << " next use at";
+      if (next_var_use.has_value())
+      {
+        m_debug_log << " index " + std::to_string(next_var_use.value());
+      }
+      else
+      {
+        m_debug_log << " not used again";
+      }
+      m_debug_log << std::endl;
+    }
+  }
+
+  m_debug_log << std::endl;
 }
 
 /*  
@@ -122,6 +155,16 @@ void Reg_allocator::generate_varkill_uevar(CFG_node &node)
     {
       node.m_uevar.insert(z.to_string());
     }
+  }
+}
+
+void Reg_allocator::print_next_var_use(Three_addr_var &var, std::optional<int> next_use)
+{
+  return;
+  if (!var.is_const())
+  {
+    std::string next_use_str = next_use ? " used at index " + std::to_string(next_use.value()) : " not used again";
+    m_debug_log << "Variable " << var.to_string() << next_use_str << std::endl;
   }
 }
 
@@ -167,6 +210,22 @@ void Reg_allocator::create_live_out()
 
 void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_Register reg_1, x86_Register reg_2)
 {
+  std::string op1;
+  std::string op2;
+  std::string op1_debug;
+  std::string op2_debug;
+
+  auto write_to_file = [&](std::ofstream &file, std::string s1, std::string s2)
+  {
+    file << s1 << std::endl;
+    file << s2 << std::endl;
+  };
+
+  auto get_var_from_reg = [this](x86_Register reg)
+  {
+    return reg_entry_var(m_allocated_reg_data[static_cast<int>(reg)]).to_string();
+  };
+
   switch (op)
   {
   case Three_addr_OP::LOAD:
@@ -175,13 +234,16 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
     break;
   case Three_addr_OP::STORE:
     m_debug_log << "Storing value from " << x86_Register_to_string(reg_1) << " into "
-               << x86_Register_to_string(result_reg) << std::endl;
+                << x86_Register_to_string(result_reg) << std::endl;
     break;
   case Three_addr_OP::ADD:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
-               << std::endl;
-    m_asm_file << "\tadd " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
-               << std::endl;
+    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
+    op2 = "add " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    op1_debug = "mov " + get_var_from_reg(reg_1) + " to " + x86_Register_to_string(result_reg);
+    op2_debug = "add " + get_var_from_reg(reg_2) + " to " + x86_Register_to_string(result_reg);
+    m_asm_file << "#" << std::endl;
+    write_to_file(m_asm_file, "\n\t#" + op1_debug, "\t#" + op2_debug);
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::SUB:
     m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
@@ -201,9 +263,12 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
                << x86_Register_to_string(result_reg) << std::endl;
     break;
   case Three_addr_OP::RET:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", "
-               << "%rax" << std::endl;
-    m_asm_file << "\tret";
+    op1 = "\tmov " + x86_Register_to_string(reg_1) + ", " + "%rax";
+    op2 = "\tret";
+    op1_debug = "returning " + get_var_from_reg(reg_1);
+    m_asm_file << "#" << std::endl;
+    write_to_file(m_asm_file, op1, op2);
+    write_to_file(m_debug_log, op1_debug, "");
     break;
   case Three_addr_OP::ASSIGN:
     if (reg_1 != result_reg)
@@ -250,31 +315,24 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
     if (var_1.is_valid())
     {
       std::optional<int> next_var_1_use = dist_to_next_var_occurance(var_1, i + 1, node);
-      if (next_var_1_use)
-      {
-        std::cout << "Variable " << var_1.to_string() << " is used again at instruction "
-                  << std::to_string(next_var_1_use.value()) << std::endl;
-      }
-      else
-      {
-        std::cout << "Variable  " << var_1.to_string() << " isn't used again in this block" << std::endl;
-      }
       reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1)]) = next_var_1_use.has_value() ? next_var_1_use.value() : INT32_MAX;
+      print_next_var_use(var_1, next_var_1_use);
     }
 
     if (var_2.is_valid())
     {
       std::optional<int> next_var_2_use = dist_to_next_var_occurance(var_2, i + 1, node);
       reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2)]) = next_var_2_use.has_value() ? next_var_2_use.value() : INT32_MAX;
+      print_next_var_use(var_1, next_var_2_use);
     }
 
     if (var_result.is_valid())
     {
       std::optional<int> next_var_result_use = dist_to_next_var_occurance(var_result, i + 1, node);
       reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result)]) = next_var_result_use.has_value() ? next_var_result_use.value() : INT32_MAX;
+      print_next_var_use(var_result, next_var_result_use);
     }
-    //TODO. Need to free registers. Not sure why done after ensure() in the pseduo code, will
-    //look into that later
+    print_register_contents();
   }
 }
 
@@ -333,7 +391,7 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
 
     for (int i = 0; i < m_allocated_reg_data.size(); i++)
     {
-      register_entry &cur_entry = m_allocated_reg_data[i];
+      register_entry &cur_entry = m_allocated_reg_data.at(i);
       std::optional<int> next_reg_use = reg_entry_dist(cur_entry);
 
       if (next_reg_use.has_value() && (next_reg_use.value() > next_furthest_use))
@@ -343,10 +401,10 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
       }
     }
 
-    register_entry &reg_entry_being_freed = m_allocated_reg_data[next_furthest_use_index];
+    register_entry &reg_entry_being_freed = m_allocated_reg_data.at(next_furthest_use_index);
 
     /*  Only write to memory if register has a temporary variable that is used later in this block */
-    if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(var_to_be_allocated, start_index, node))
+    if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node))
     {
       std::string source_reg_str = x86_Register_to_string(reg_entry_reg(reg_entry_being_freed));
       std::string var_offset_str = std::to_string(get_var_offset_cond_add(reg_entry_var(reg_entry_being_freed).to_string()));
@@ -389,7 +447,7 @@ std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_va
   for (int cur_index = start_index; cur_index < node.m_end_index; cur_index++)
   {
 
-    three_addr_code_entry &cur_entry = m_three_addr_code[cur_index];
+    three_addr_code_entry &cur_entry = m_three_addr_code.at(cur_index);
 
     if (std::get<0>(cur_entry) == search_var)
     {

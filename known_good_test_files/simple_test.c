@@ -1,9 +1,13 @@
-int main(void)
-{
-  int a;
-  int b;
-  int c;
-  a = 9;
-  b = 4;
-  return a * b;
+int main(void) {
+	int b;
+	int a;
+	int c;
+	int result;
+
+	b = 0;
+	a = 1;
+	c = 0;
+	result = b + a + c + 0;
+
+	return result;
 }

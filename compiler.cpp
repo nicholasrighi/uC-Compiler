@@ -102,7 +102,7 @@ int main(int argc, char **argv)
 
   Program_symbol_table prog_sym_table;
   std::vector<three_addr_code_entry> intermediate_code;
-  std::ofstream debug_log("debug_log.txt", std::ofstream::trunc);
+  std::ofstream debug_log(input_file_name + "_debug_log", std::ofstream::trunc);
 
   /*  Visitors for generating Three_addr_code and type checking input */
   Print_AST_visitor print_visitor;
