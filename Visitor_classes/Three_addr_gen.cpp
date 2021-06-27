@@ -179,6 +179,12 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     m_intermediate_rep.push_back(std::make_tuple(new_temp, Three_addr_OP::EQUALITY, left_temp, right_temp));
     m_last_entry = new_temp;
   }
+  else if (node.m_op == "!=")
+  {
+    Three_addr_var new_temp = gen_temp();
+    m_intermediate_rep.push_back(std::make_tuple(new_temp, Three_addr_OP::NOT_EQUALITY, left_temp, right_temp));
+    m_last_entry = new_temp;
+  }
   print_IR_code(m_intermediate_rep.back());
 }
 

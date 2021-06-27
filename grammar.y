@@ -286,6 +286,13 @@ expr            : NUMBER  {$$ = new Number($1);}
                                         binop_node->add_right_exp($3);
                                         $$ = binop_node;
                                       }
+                | expr OP_NOT_EQUAL expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("!=");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
                 | expr OP_BITWISE_AND expr     
                                       {
                                         Binop_dec* binop_node = new Binop_dec("&");

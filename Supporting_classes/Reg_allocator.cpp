@@ -293,6 +293,16 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
     op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
     write_to_file(m_asm_file, "\t" + op1, "");
     break;
+  case Three_addr_OP::NOT_EQUALITY:
+    op1 = "xor %rdx, %rdx";
+    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op2 = "setne %dl";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
   default:
     m_asm_file << "Error, invalid op code passed to gen_asm_line " << std::endl;
     break;
