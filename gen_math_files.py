@@ -30,12 +30,13 @@ def gen_test_file(file_number, num_of_vars):
 
     # assign variables
     for var in var_list:
-      math_file.write("\t" + var + " = " + str(random.randrange(0, 10)) + ";\n")
+      math_file.write("\t" + var + " = " + str(random.randrange(1, 10)) + ";\n")
     math_file.write("\tresult = ")
 
-    for var in var_list:
-        math_file.write(var + " + ")
-    math_file.write("0;\n")
+    # perform random math operations on all variables
+    for var in var_list[:-1]:
+        math_file.write(var + random.choice([" + ", " - ", " * ", " / ", " & ", " | "]))
+    math_file.write(var_list[-1] + ";")
     math_file.write("\n")
 
     # return result to user
@@ -45,6 +46,6 @@ def gen_test_file(file_number, num_of_vars):
 
 if __name__ == "__main__":
   random.seed(123)
-  for i in range(15):
+  for i in range(100):
     gen_test_file(file_number = i, num_of_vars = 4)
 

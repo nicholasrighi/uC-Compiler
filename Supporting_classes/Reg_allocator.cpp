@@ -31,9 +31,6 @@ std::string x86_Register_to_string(x86_Register reg)
   case x86_Register::RCX:
     return "%rcx";
     break;
-  case x86_Register::RDX:
-    return "%rdx";
-    break;
   case x86_Register::RBX:
     return "%rbx";
     break;
@@ -210,6 +207,7 @@ void Reg_allocator::create_live_out()
 
 void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_Register reg_1, x86_Register reg_2)
 {
+
   std::string op1;
   std::string op2;
   std::string op1_debug;
@@ -218,7 +216,10 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
   auto write_to_file = [&](std::ofstream &file, std::string s1, std::string s2)
   {
     file << s1 << std::endl;
-    file << s2 << std::endl;
+    if (s2 != "")
+    {
+      file << s2 << std::endl;
+    }
   };
 
   auto get_var_from_reg = [this](x86_Register reg)
@@ -239,17 +240,12 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
   case Three_addr_OP::ADD:
     op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
     op2 = "add " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
-    op1_debug = "mov " + get_var_from_reg(reg_1) + " to " + x86_Register_to_string(result_reg);
-    op2_debug = "add " + get_var_from_reg(reg_2) + " to " + x86_Register_to_string(result_reg);
-    m_asm_file << "#" << std::endl;
-    write_to_file(m_asm_file, "\n\t#" + op1_debug, "\t#" + op2_debug);
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::SUB:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
-               << std::endl;
-    m_asm_file << "\tsub " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
-               << std::endl;
+    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
+    op2 = "sub " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::MULT:
     m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
@@ -258,17 +254,27 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
                << std::endl;
     break;
   case Three_addr_OP::DIVIDE:
-    m_asm_file << "Diving values from " << x86_Register_to_string(reg_1) << " and "
-               << x86_Register_to_string(reg_2) << " into "
-               << x86_Register_to_string(result_reg) << std::endl;
+    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + "%rax";
+    op2 = "xor %rdx, %rdx";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "idiv " + x86_Register_to_string(reg_2);
+    op2 = "mov %rax, " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::RET:
     op1 = "\tmov " + x86_Register_to_string(reg_1) + ", " + "%rax";
     op2 = "\tret";
-    op1_debug = "returning " + get_var_from_reg(reg_1);
-    m_asm_file << "#" << std::endl;
     write_to_file(m_asm_file, op1, op2);
-    write_to_file(m_debug_log, op1_debug, "");
+    break;
+  case Three_addr_OP::BIT_AND:
+    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
+    op2 = "and " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    break;
+  case Three_addr_OP::BIT_OR:
+    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
+    op2 = "or " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::ASSIGN:
     if (reg_1 != result_reg)
@@ -276,6 +282,16 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
       m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
                  << std::endl;
     }
+    break;
+  case Three_addr_OP::EQUALITY:
+    op1 = "xor %rdx, %rdx";
+    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op2 = "sete %dl";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "");
     break;
   default:
     m_asm_file << "Error, invalid op code passed to gen_asm_line " << std::endl;

@@ -32,18 +32,21 @@ return    {return RET;}
 
     /* operators */
 "!"       {yylval.unop_dec = new Unop_dec(yytext); return OP_INVERT;}
-"!="      {yylval.binop_dec = new Binop_dec(yytext);return OP_NOT_EQUAL;}
-"&&"      {yylval.binop_dec = new Binop_dec(yytext);return OP_LOG_AND;}
-"*"       {yylval.binop_dec = new Binop_dec(yytext);return OP_MULT;}
-"+"       {yylval.binop_dec = new Binop_dec(yytext);return OP_ADD;}
-"-"       {yylval.binop_dec = new Binop_dec(yytext);return OP_MINUS;}
-"/"       {yylval.binop_dec = new Binop_dec(yytext);return OP_DIVIDE;}
-"<="      {yylval.binop_dec = new Binop_dec(yytext);return OP_LESS_EQUAL;}
-"<"       {yylval.binop_dec = new Binop_dec(yytext);return OP_LESS_THAN;}
-"=="      {yylval.binop_dec = new Binop_dec(yytext);return OP_EQUAL;}
-"="       {yylval.binop_dec = new Binop_dec(yytext);return OP_ASSIGN;}
-">="      {yylval.binop_dec = new Binop_dec(yytext);return OP_GREATER_EQUAL;}
-">"       {yylval.binop_dec = new Binop_dec(yytext);return OP_GREATER_THAN;}
+"!="      {return OP_NOT_EQUAL;}
+"&&"      {return OP_LOG_AND;}
+"&"       {return OP_BITWISE_AND;}
+"|"       {return OP_BITWISE_OR;}
+"||"      {return OP_LOG_OR;}
+"*"       {return OP_MULT;}
+"+"       {return OP_ADD;}
+"-"       {return OP_MINUS;}
+"/"       {return OP_DIVIDE;}
+"<="      {return OP_LESS_EQUAL;}
+"<"       {return OP_LESS_THAN;}
+"=="      {return OP_EQUAL;}
+"="       {return OP_ASSIGN;}
+">="      {return OP_GREATER_EQUAL;}
+">"       {return OP_GREATER_THAN;}
 
     /* misc symbols */
 "("       {return LEFT_PAREN;}

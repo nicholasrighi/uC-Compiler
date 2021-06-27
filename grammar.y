@@ -21,7 +21,7 @@
 }
 
 %union {
-    Base_node* abstract_ptr;
+    Base_node*  abstract_ptr;
     Ret_type    variable_type;  // used when a variable type is being defined (only used for the typename token)
     Var_ref*    variable_ref;   // used for naming a variable (if you need to represent x as an input to f(x))
     Var_dec*    variable_dec;   // used when defining an int or a char (int x;)
@@ -62,7 +62,6 @@
 %type <array_dec>     arraydec
 %type <variable_type> typename
 %type <unop_dec>      unop 
-%type <binop_dec>     binop
 
 // control flow
 %token ELSE   "else"
@@ -76,27 +75,32 @@
 %token TYPE_VOID  "void"
 
 // operators
-%token <expression>  OP_ASSIGN          "=" 
-%token <expression>  OP_LOG_AND         "&&"
-%token <expression>  OP_NOT_EQUAL       "!="
-%token <expression>  OP_EQUAL           "=="
-%token <expression>  OP_LESS_EQUAL      "<="
-%token <expression>  OP_LESS_THAN       "<"
-%token <expression>  OP_GREATER_EQUAL   ">="
-%token <expression>  OP_GREATER_THAN    ">"
-%token <expression>  OP_MINUS           "-"
-%token <expression>  OP_ADD             "+"
-%token <expression>  OP_MULT            "*"
-%token <expression>  OP_DIVIDE          "/"
-%token <expression>  UMINUS 
-%token <expression>  OP_INVERT          "!"
+%token  OP_ASSIGN          "=" 
+%token  OP_LOG_AND         "&&"
+%token  OP_BITWISE_AND     "&"
+%token  OP_LOG_OR          "||"
+%token  OP_BITWISE_OR      "|"
+%token  OP_NOT_EQUAL       "!="
+%token  OP_EQUAL           "=="
+%token  OP_LESS_EQUAL      "<="
+%token  OP_LESS_THAN       "<"
+%token  OP_GREATER_EQUAL   ">="
+%token  OP_GREATER_THAN    ">"
+%token  OP_MINUS           "-"
+%token  OP_ADD             "+"
+%token  OP_MULT            "*"
+%token  OP_DIVIDE          "/"
+%token  UMINUS 
+%token  OP_INVERT          "!"
 
-// TODO. FIX UMINUS
 %right "="
+%left "||"
 %left "&&"
+%left "|"
+%left "&"
 %left "==" "!="
 %left "<" ">" "<=" ">="
-%left "+" "-"
+%left "-" "+"
 %left "*" "/"
 %left "!"
 
@@ -242,10 +246,59 @@ expr            : NUMBER  {$$ = new Number($1);}
                                    $$ = $1;
                                   }
 
-                | expr binop expr     {
-                                        $2->add_left_exp($1);
-                                        $2->add_right_exp($3);
-                                        $$ = $2;
+                | expr OP_ADD expr    {
+                                        Binop_dec* binop_node = new Binop_dec("+");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_MINUS expr    {
+                                        Binop_dec* binop_node = new Binop_dec("-");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_MULT expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("*");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_DIVIDE expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("/");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_ASSIGN expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("=");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_EQUAL expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("==");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_BITWISE_AND expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("&");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_BITWISE_OR expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("|");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
                                       }
 
                 | ID "(" actuals ")" {$$ = new Func_ref($1, $3);}
@@ -255,20 +308,6 @@ expr            : NUMBER  {$$ = new Number($1);}
 
 unop            : "-"   {$$ = yylval.unop_dec;}
                 | "!"   {$$ = yylval.unop_dec;}
-                ;
-
-binop           : "+"   {$$ = yylval.binop_dec;}
-                | "-"   {$$ = yylval.binop_dec;}
-                | "*"   {$$ = yylval.binop_dec;}
-                | "/"   {$$ = yylval.binop_dec;}
-                | "<"   {$$ = yylval.binop_dec;}
-                | ">"   {$$ = yylval.binop_dec;}
-                | "<="  {$$ = yylval.binop_dec;}
-                | ">="  {$$ = yylval.binop_dec;}
-                | "!="  {$$ = yylval.binop_dec;}
-                | "=="  {$$ = yylval.binop_dec;}
-                | "&&"  {$$ = yylval.binop_dec;}
-                | "="   {$$ = yylval.binop_dec;}
                 ;
 
 actuals         : expr_list {$$ = $1;}

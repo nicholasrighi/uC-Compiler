@@ -18,6 +18,7 @@ enum class Three_addr_OP
   MOVE,
   LOAD,
   ASSIGN,
+  EQUALITY,
   STORE,
   LOG_AND,
   BIT_AND,

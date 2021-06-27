@@ -1,0 +1,19 @@
+Start of IR code
+
+t0 = ERROR IN OP TO STR 3,3
+RET t0,
+
+Start of debug log for assembly
+
+
+%r8: unallocated
+%r9: unallocated
+%r10: t0 next use at index 1
+%r11: 3 next use at index 2147483647
+
+
+%r8: unallocated
+%r9: unallocated
+%r10: t0 next use at index 2147483647
+%r11: 3 next use at index 2147483647
+

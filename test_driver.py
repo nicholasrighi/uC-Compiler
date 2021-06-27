@@ -48,6 +48,8 @@ def check_math_files():
     checked_custom_cc = False
     checked_gcc = False
 
+    print("Checking output of math files\n")
+
     for file_name in math_files:
 
         if (checked_custom_cc and checked_gcc):
@@ -80,7 +82,9 @@ def check_math_files():
 
 # Runs the testing functions
 if __name__ == "__main__":
+    print("Generating files\n")
     subprocess.run(["python3", "gen_math_files.py"])
+    print("Compiling files under gcc and custom_cc\n")
     subprocess.run(["make", "-C", "./math_test_files"])
     if (check_math_files()):
         print("Success, output for gcc and custom cc match")

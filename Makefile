@@ -19,4 +19,4 @@ debug: $(PARSER_FILE).l $(GRAMMAR_FILE).y
 	$(CC) $(C_FLAGS) $(SAN_FLAGS) $(wildcard *.cpp) grammar.tab.c lex.yy.c $(wildcard AST_classes/*.cpp) $(wildcard Supporting_classes/*.cpp) $(wildcard Visitor_classes/*.cpp) -lfl -o $(EXE_NAME)
 
 clean:
-	-rm *.tab* $(EXE_NAME) *.yy.c* *.output* test asm.s debug_log.txt
+	-rm *.tab* $(EXE_NAME) *.yy.c* *.output* test *.s debug_log.txt

@@ -35,30 +35,30 @@ std::string Three_addr_gen::gen_label()
   return "L" + std::to_string(stored_index);
 }
 
-void Three_addr_gen::print_IR_code(three_addr_code_entry& IR_entry)
+void Three_addr_gen::print_IR_code(three_addr_code_entry &IR_entry)
 {
-    /*  Print out the new temporary, if one exists */
-    if (std::get<0>(IR_entry).is_valid())
-    {
-      m_debug_log << std::get<0>(IR_entry).to_string() << " = ";
-    }
+  /*  Print out the new temporary, if one exists */
+  if (std::get<0>(IR_entry).is_valid())
+  {
+    m_debug_log << std::get<0>(IR_entry).to_string() << " = ";
+  }
 
-    /*  Print out operator, which will always exist */
-    m_debug_log << three_op_to_string(std::get<1>(IR_entry)) << " ";
+  /*  Print out operator, which will always exist */
+  m_debug_log << three_op_to_string(std::get<1>(IR_entry)) << " ";
 
-    /*  Print out first temporary being used, if it exists */
-    if (std::get<2>(IR_entry).is_valid())
-    {
-      m_debug_log << std::get<2>(IR_entry).to_string() << ",";
-    }
+  /*  Print out first temporary being used, if it exists */
+  if (std::get<2>(IR_entry).is_valid())
+  {
+    m_debug_log << std::get<2>(IR_entry).to_string() << ",";
+  }
 
-    /*  Print out second temporary being used, if it exists */
-    if (std::get<3>(IR_entry).is_valid())
-    {
-      m_debug_log << std::get<3>(IR_entry).to_string();
-    }
+  /*  Print out second temporary being used, if it exists */
+  if (std::get<3>(IR_entry).is_valid())
+  {
+    m_debug_log << std::get<3>(IR_entry).to_string();
+  }
 
-    m_debug_log << std::endl;
+  m_debug_log << std::endl;
 }
 
 /*
@@ -138,17 +138,46 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::DIVIDE, left_temp, right_temp));
   }
+  else if (node.m_op == "&")
+  {
+    m_last_entry = Three_addr_var(gen_temp());
+    m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::BIT_AND, left_temp, right_temp));
+  }
+  else if (node.m_op == "|")
+  {
+    m_last_entry = Three_addr_var(gen_temp());
+    m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::BIT_OR, left_temp, right_temp));
+  }
+  else if (node.m_op == "&&")
+  {
+    m_last_entry = Three_addr_var(gen_temp());
+    m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::LOG_AND, left_temp, right_temp));
+  }
+  else if (node.m_op == "||")
+  {
+    m_last_entry = Three_addr_var(gen_temp());
+    m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::LOG_OR, left_temp, right_temp));
+  }
   else if (node.m_op == "=")
   {
     // TODO. Need to check if the variable is an array. If it is an array, then need to store value to memory
-    // instead of loading it into a register 
-    if (left_temp.is_string()) {
+    // instead of loading it into a register
+    if (left_temp.is_string())
+    {
       m_intermediate_rep.push_back(std::make_tuple(left_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
-    } else {
+    }
+    else
+    {
       Three_addr_var new_temp = gen_temp();
       m_intermediate_rep.push_back(std::make_tuple(new_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
       m_last_entry = new_temp;
     }
+  }
+  else if (node.m_op == "==")
+  {
+    Three_addr_var new_temp = gen_temp();
+    m_intermediate_rep.push_back(std::make_tuple(new_temp, Three_addr_OP::EQUALITY, left_temp, right_temp));
+    m_last_entry = new_temp;
   }
   print_IR_code(m_intermediate_rep.back());
 }
