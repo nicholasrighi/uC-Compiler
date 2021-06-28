@@ -18,5 +18,9 @@ debug: $(PARSER_FILE).l $(GRAMMAR_FILE).y
 	flex $(PARSER_FILE).l
 	$(CC) $(C_FLAGS) $(SAN_FLAGS) $(wildcard *.cpp) grammar.tab.c lex.yy.c $(wildcard AST_classes/*.cpp) $(wildcard Supporting_classes/*.cpp) $(wildcard Visitor_classes/*.cpp) -lfl -o $(EXE_NAME)
 
+test:
+	./compiler -f known_good_test_files/simple_test.c -o asm.s
+	gcc -g asm.s -o test
+
 clean:
 	-rm *.tab* $(EXE_NAME) *.yy.c* *.output* test *.s debug_log.txt

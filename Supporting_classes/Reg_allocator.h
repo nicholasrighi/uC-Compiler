@@ -132,7 +132,7 @@ private:
      variable to the symbol table if it's not already there) Then free adds the
      newly freed physical register to m_free_physical_registers
   */
-  void free(register_entry &reg_entry);
+  void free(x86_Register reg_to_free);
 
   /*
     Returns the next instruction at which var_name is used. If var_name isn't

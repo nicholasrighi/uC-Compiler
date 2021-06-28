@@ -158,6 +158,16 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::LOG_OR, left_temp, right_temp));
   }
+  else if (node.m_op == "<")
+  {
+    m_last_entry = Three_addr_var(gen_temp());
+    m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::LESS_THAN, left_temp, right_temp));
+  }
+  else if (node.m_op == ">")
+  {
+    m_last_entry = Three_addr_var(gen_temp());
+    m_intermediate_rep.push_back(std::make_tuple(m_last_entry, Three_addr_OP::GREATER_THAN, left_temp, right_temp));
+  }
   else if (node.m_op == "=")
   {
     // TODO. Need to check if the variable is an array. If it is an array, then need to store value to memory

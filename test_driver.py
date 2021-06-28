@@ -85,7 +85,7 @@ if __name__ == "__main__":
     print("Generating files\n")
     subprocess.run(["python3", "gen_math_files.py"])
     print("Compiling files under gcc and custom_cc\n")
-    subprocess.run(["make", "-C", "./math_test_files"])
+    subprocess.run(["make", "-j5", "-C", "./math_test_files"])
     if (check_math_files()):
         print("Success, output for gcc and custom cc match")
     else:

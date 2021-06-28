@@ -303,6 +303,26 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
     op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
     write_to_file(m_asm_file, "\t" + op1, "");
     break;
+  case Three_addr_OP::LESS_THAN:
+    op1 = "xor %rdx, %rdx";
+    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op2 = "setl %dl";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
+  case Three_addr_OP::GREATER_THAN:
+    op1 = "xor %rdx, %rdx";
+    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op2 = "setg %dl";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
   default:
     m_asm_file << "Error, invalid op code passed to gen_asm_line " << std::endl;
     break;
@@ -341,21 +361,42 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
     if (var_1.is_valid())
     {
       std::optional<int> next_var_1_use = dist_to_next_var_occurance(var_1, i + 1, node);
-      reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1)]) = next_var_1_use.has_value() ? next_var_1_use.value() : INT32_MAX;
+      if (next_var_1_use.has_value())
+      {
+        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1)]) = next_var_1_use.value();
+      }
+      else
+      {
+        free(reg_1);
+      }
       print_next_var_use(var_1, next_var_1_use);
     }
 
     if (var_2.is_valid())
     {
       std::optional<int> next_var_2_use = dist_to_next_var_occurance(var_2, i + 1, node);
-      reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2)]) = next_var_2_use.has_value() ? next_var_2_use.value() : INT32_MAX;
-      print_next_var_use(var_1, next_var_2_use);
+      if (next_var_2_use.has_value())
+      {
+        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2)]) = next_var_2_use.value();
+      }
+      else
+      {
+        free(reg_2);
+      }
+      print_next_var_use(var_2, next_var_2_use);
     }
 
     if (var_result.is_valid())
     {
       std::optional<int> next_var_result_use = dist_to_next_var_occurance(var_result, i + 1, node);
-      reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result)]) = next_var_result_use.has_value() ? next_var_result_use.value() : INT32_MAX;
+      if (next_var_result_use.has_value())
+      {
+        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result)]) = next_var_result_use.value();
+      }
+      else
+      {
+        free(reg_result);
+      }
       print_next_var_use(var_result, next_var_result_use);
     }
     print_register_contents();
@@ -447,22 +488,18 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
   }
 }
 
-void Reg_allocator::free(register_entry &reg_entry)
+void Reg_allocator::free(x86_Register reg_to_free)
 {
 
-  int reg_index = static_cast<int>(reg_entry_reg(reg_entry));
+  int reg_index = static_cast<int>(reg_to_free);
 
   /*  Only free register if it hasn't been freed yet  */
-  if (!m_register_free_status[reg_index])
+  if (!m_register_free_status.at(reg_index))
   {
-    m_free_reg_stack.push(reg_entry_reg(reg_entry));
+    m_free_reg_stack.push(reg_to_free);
 
-    /*  
-        Reset reg_entry to empty. Ensures that an entry won't compare to true 
-        when iterating through the vector for matching values 
-    */
-    reg_entry_var(reg_entry) = Three_addr_var();
-    reg_entry_dist(reg_entry) = std::nullopt;
+    reg_entry_var(m_allocated_reg_data.at(reg_index)) = Three_addr_var();
+    reg_entry_dist(m_allocated_reg_data.at(reg_index)) = std::nullopt;
     m_register_free_status[reg_index] = true;
   }
 }
