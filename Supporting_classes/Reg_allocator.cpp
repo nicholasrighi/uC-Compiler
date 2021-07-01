@@ -53,12 +53,8 @@ Reg_allocator::Reg_allocator(std::string asm_file_name, std::ofstream &debug_log
   m_asm_file.open(asm_file_name, std::ofstream::trunc);
 
   m_asm_file << ".globl main" << std::endl;
-  m_asm_file << "main:" << std::endl;
-  m_asm_file << "\tmov %rsp, %rbp" << std::endl;
-  m_asm_file << "\tadd $-8, %rbp" << std::endl;
 
-  //for (int i = 0; i < static_cast<int>(x86_Register::RDI); i++)
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < static_cast<int>(x86_Register::RDI); i++)
   {
     x86_Register cur_reg = static_cast<x86_Register>(i);
     m_allocated_reg_data.push_back(std::make_tuple(Three_addr_var(), cur_reg, std::nullopt));
@@ -84,6 +80,8 @@ void Reg_allocator::generate_asm_file()
               << std::endl;
 
   generate_CFG();
+  generate_live_out_overall();
+  print_CFG();
   for (auto &CFG_node : m_cfg_graph)
   {
     if (!CFG_node.second)
@@ -104,7 +102,7 @@ void Reg_allocator::print_register_contents()
     std::string reg_as_str = x86_Register_to_string(reg_entry_reg(cur_reg_entry));
     std::optional<int> next_var_use = reg_entry_dist(cur_reg_entry);
 
-    if (m_register_free_status[reg_to_index])
+    if (m_register_free_status.at(reg_to_index))
     {
       m_debug_log << reg_as_str << ": unallocated" << std::endl;
     }
@@ -127,30 +125,69 @@ void Reg_allocator::print_register_contents()
   m_debug_log << std::endl;
 }
 
+void Reg_allocator::print_CFG()
+{
+  for (CFG_entry &cfg_node : m_cfg_graph)
+  {
+    m_debug_log << "Start index: " << std::to_string(cfg_node.first.m_start_index) << std::endl;
+    m_debug_log << "End index: " << std::to_string(cfg_node.first.m_end_index) << std::endl;
+    m_debug_log << "Varkill set:" << std::endl;
+
+    for (const std::string &str : cfg_node.first.m_var_kill)
+    {
+      m_debug_log << "\t" + str << std::endl;
+    }
+
+    m_debug_log << "UEVar set:" << std::endl;
+    for (const std::string &str : cfg_node.first.m_uevar)
+    {
+      m_debug_log << "\t" + str << std::endl;
+    }
+
+    m_debug_log << "Liveout set:" << std::endl;
+    for (const std::string &str : cfg_node.first.m_live_out)
+    {
+      m_debug_log << "\t" + str << std::endl;
+    }
+
+    m_debug_log << "\n"
+                << std::endl;
+  }
+}
+
 /*  
   Assumes all operations are of the form "x <- y op z", where y and z are optional
 */
-void Reg_allocator::generate_varkill_uevar(CFG_node &node)
+void Reg_allocator::generate_varkill_uevar()
 {
-  for (int i = node.m_start_index; i < node.m_end_index; i++)
+  for (CFG_entry &cur_entry : m_cfg_graph)
   {
-    Three_addr_var x = std::get<0>(m_three_addr_code[node.m_start_index]);
-    Three_addr_var y = std::get<2>(m_three_addr_code[node.m_start_index]);
-    Three_addr_var z = std::get<3>(m_three_addr_code[node.m_start_index]);
-
-    if (x.is_valid())
+    CFG_node &node = cur_entry.first;
+    for (int i = node.m_start_index; i <= node.m_end_index; i++)
     {
-      node.m_var_kill.insert(x.to_string());
-    }
+      Three_addr_var x = std::get<0>(m_three_addr_code[i]);
+      Three_addr_var y = std::get<2>(m_three_addr_code[i]);
+      Three_addr_var z = std::get<3>(m_three_addr_code[i]);
 
-    if (y.is_valid() && y.is_string() && !node.m_var_kill.count(y.to_string()))
-    {
-      node.m_uevar.insert(y.to_string());
-    }
+      /*  If a variable is defined in a basic block then it's added to the varkill set */
+      if (x.is_valid() && !x.is_raw_str() && !x.is_label())
+      {
+        node.m_var_kill.insert(x.to_string());
+      }
 
-    if (z.is_valid() && z.is_string() && !node.m_var_kill.count(z.to_string()))
-    {
-      node.m_uevar.insert(z.to_string());
+      /*  
+          If variables y and z are used but aren't in varkill, they must be defined in an earlier
+          basic block. This means they need to be added to ueavar 
+      */
+      if (y.is_valid() && y.is_string() && (node.m_var_kill.count(y.to_string()) == 0))
+      {
+        node.m_uevar.insert(y.to_string());
+      }
+
+      if (z.is_valid() && z.is_string() && (node.m_var_kill.count(z.to_string()) == 0))
+      {
+        node.m_uevar.insert(z.to_string());
+      }
     }
   }
 }
@@ -181,31 +218,149 @@ std::optional<int> &Reg_allocator::reg_entry_dist(register_entry &reg_entry)
 }
 
 /*  
-    This is a stub that need to be fleshed out later. It assumes the entire program is one basic
-    block. 
+  Iteratres through m_three_addr_code and locates basic blocks. Adds any basic blocks found to the 
+  m_cfg_graph. 
+
+  Basic block defintion:
+      Basic block starts at:  label OR after a jump instruction
+      Basic block ends at:    at a jump instruction (jump IS included in the basic block) OR before a 
+                                label instruction (label is NOT included in the basic block)
+
+  Each basic block has either [0,2] children:
+      return statements/last instruction in the list have 0 children
+      unconditional jumps have 1 child (the jump target) 
+      conditional jumps have 2 targets (the jump target and the fall through target)
 */
 void Reg_allocator::generate_CFG()
 {
-  m_cfg_graph.push_back(std::make_pair(CFG_node(0, m_three_addr_code.size()), false));
-}
 
-/*
-  This is a stub that needs to be fleshed out later. Does nothing currently
-*/
-void Reg_allocator::create_live_out()
+  std::unordered_map<std::string, int> label_to_index_map;
 
-{
-  /*
-  bool changed = true;
-  while (changed)
+  /*  add all label names and corresponding indicies to the table */
+  for (int i = 0; i < m_three_addr_code.size(); i++)
   {
-    changed = false;
-    std::set<std::string> saved_live_out = m_cfg_graph[0].first.m_live_out;
+    if (std::get<1>(m_three_addr_code.at(i)) == Three_addr_OP::LABEL)
+    {
+      label_to_index_map.insert({std::get<2>(m_three_addr_code.at(i)).to_string(), i});
+    }
   }
-  */
+
+  /*  create basic blocks out of m_three_addr_code */
+  int start_of_current_block;
+  for (int cur_index = 0; cur_index < m_three_addr_code.size(); cur_index++)
+  {
+    Three_addr_OP cur_inst = std::get<1>(m_three_addr_code.at(cur_index));
+
+    /*  Basic blocks end at the beginning of a jump instruction */
+    if (cur_inst == Three_addr_OP::UNCOND_J)
+    {
+      int jmp_target = label_to_index_map.at(std::get<2>(m_three_addr_code.at(cur_index)).to_string());
+      m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, jmp_target), false});
+      m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+    }
+    else if (cur_inst == Three_addr_OP::EQUAL_J)
+    {
+      int fall_through_target = cur_index + 1;
+      int jmp_target = label_to_index_map.at(std::get<2>(m_three_addr_code.at(cur_index)).to_string());
+      m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, jmp_target, fall_through_target), false});
+      m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+    }
+    /*  Basic blocks start at a label */
+    else if (cur_inst == Three_addr_OP::LABEL)
+    {
+      start_of_current_block = cur_index;
+    }
+    /*  Basic blocks start after a jump instruction */
+    else if (cur_index != 0 && (std::get<1>(m_three_addr_code.at(cur_index - 1)) == Three_addr_OP::UNCOND_J ||
+                                std::get<1>(m_three_addr_code.at(cur_index - 1)) == Three_addr_OP::EQUAL_J))
+    {
+      start_of_current_block = cur_index;
+    }
+    /*  Basic blocks end before a label */
+    else if (cur_index != m_three_addr_code.size() - 1 &&
+             std::get<1>(m_three_addr_code.at(cur_index + 1)) == Three_addr_OP::LABEL)
+    {
+      m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, cur_index + 1), false});
+      m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+    }
+    /*  End current block if this is the last instruction in the list */
+    else if (cur_index == m_three_addr_code.size() - 1)
+    {
+      m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index), false});
+      m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+    }
+  }
 }
 
-void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_Register reg_1, x86_Register reg_2)
+/*  Calculates the live out set for each cfg node in m_cfg_graph. */
+void Reg_allocator::generate_live_out_overall()
+{
+  generate_varkill_uevar();
+
+  bool live_out_changed = true;
+
+  /* Iterate over every cfg node until all live_out sets stop changing */
+  while (live_out_changed)
+  {
+    live_out_changed = false;
+
+    for (auto &cur_cfg_entry : m_cfg_graph)
+    {
+      live_out_changed |= generate_live_out_from_node(cur_cfg_entry.first);
+    }
+  }
+}
+
+bool Reg_allocator::generate_live_out_from_node(CFG_node &node)
+{
+  std::vector<int> start_indicies_child_nodes;
+
+  if (node.m_jmp_target.has_value())
+  {
+    start_indicies_child_nodes.push_back(node.m_jmp_target.value());
+  }
+
+  if (node.m_fall_through_target.has_value())
+  {
+    start_indicies_child_nodes.push_back(node.m_fall_through_target.value());
+  }
+
+  /* Recalculate child nodes liveout */
+  for (int cur_index : start_indicies_child_nodes)
+  {
+    CFG_node &child_node = m_cfg_graph.at(m_start_index_to_graph_index.at(cur_index)).first;
+    generate_live_out_from_node(child_node);
+  }
+
+  /*  Save old liveout size to see if the size changes after we recompute live_out */
+  int prev_live_out_size = node.m_live_out.size();
+
+  for (int cur_index : start_indicies_child_nodes)
+  {
+    CFG_node &child_node = m_cfg_graph.at(m_start_index_to_graph_index.at(cur_index)).first;
+
+    /*  Add all variables in the child UEVar set to the parent's live out set */
+    node.m_live_out.insert(child_node.m_uevar.begin(), child_node.m_uevar.end());
+
+    /*  
+        Add all variables in the child's live out set that are in the child's live out set but aren't defined
+        in the child's basic block
+    */
+    for (const std::string &cur_var : child_node.m_live_out)
+    {
+      if (child_node.m_var_kill.count(cur_var) == 0)
+      {
+        node.m_live_out.insert(cur_var);
+      }
+    }
+  }
+
+  return node.m_live_out.size() != prev_live_out_size;
+}
+
+void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Three_addr_OP op,
+                                      std::optional<x86_Register> reg_1, std::optional<x86_Register> reg_2,
+                                      std::string jmp_target)
 {
 
   std::string op1;
@@ -229,121 +384,163 @@ void Reg_allocator::gen_asm_line(x86_Register result_reg, Three_addr_OP op, x86_
 
   switch (op)
   {
+  case Three_addr_OP::RAW_STR:
+    write_to_file(m_asm_file, jmp_target, "");
+    break;
   case Three_addr_OP::LOAD:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+    m_asm_file << "\tmov " << x86_Register_to_string(reg_1.value()) << ", " << x86_Register_to_string(result_reg.value())
                << std::endl;
     break;
   case Three_addr_OP::STORE:
-    m_debug_log << "Storing value from " << x86_Register_to_string(reg_1) << " into "
-                << x86_Register_to_string(result_reg) << std::endl;
+    m_debug_log << "Storing value from " << x86_Register_to_string(reg_1.value()) << " into "
+                << x86_Register_to_string(result_reg.value()) << std::endl;
     break;
   case Three_addr_OP::ADD:
-    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
-    op2 = "add " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
+    op2 = "add " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::SUB:
-    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
-    op2 = "sub " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
+    op2 = "sub " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::MULT:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+    m_asm_file << "\tmov " << x86_Register_to_string(reg_1.value()) << ", " << x86_Register_to_string(result_reg.value())
                << std::endl;
-    m_asm_file << "\timul " << x86_Register_to_string(reg_2) << ", " << x86_Register_to_string(result_reg)
+    m_asm_file << "\timul " << x86_Register_to_string(reg_2.value()) << ", " << x86_Register_to_string(result_reg.value())
                << std::endl;
     break;
   case Three_addr_OP::DIVIDE:
-    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + "%rax";
+    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax";
     op2 = "xor %rdx, %rdx";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "idiv " + x86_Register_to_string(reg_2);
-    op2 = "mov %rax, " + x86_Register_to_string(result_reg);
+    op1 = "idiv " + x86_Register_to_string(reg_2.value());
+    op2 = "mov %rax, " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::RET:
-    op1 = "\tmov " + x86_Register_to_string(reg_1) + ", " + "%rax";
+    op1 = "\tmov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax";
     op2 = "\tret";
     write_to_file(m_asm_file, op1, op2);
     break;
   case Three_addr_OP::BIT_AND:
-    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
-    op2 = "and " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
+    op2 = "and " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::BIT_OR:
-    op1 = "mov " + x86_Register_to_string(reg_1) + ", " + x86_Register_to_string(result_reg);
-    op2 = "or " + x86_Register_to_string(reg_2) + ", " + x86_Register_to_string(result_reg);
+    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
+    op2 = "or " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
     break;
   case Three_addr_OP::ASSIGN:
-    if (reg_1 != result_reg)
+    if (reg_1.value() != result_reg.value())
     {
-      m_asm_file << "\tmov " << x86_Register_to_string(reg_1) << ", " << x86_Register_to_string(result_reg)
+      m_asm_file << "\tmov " << x86_Register_to_string(reg_1.value()) << ", " << x86_Register_to_string(result_reg.value())
                  << std::endl;
     }
     break;
+  case Three_addr_OP::CMP:
+    op1 = "cmp " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_2.value());
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
+  case Three_addr_OP::UNCOND_J:
+    op1 = "jmp " + jmp_target;
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
+  case Three_addr_OP::EQUAL_J:
+    op1 = "je " + jmp_target;
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
+  case Three_addr_OP::LABEL:
+    write_to_file(m_asm_file, jmp_target + ":", "");
+    break;
   case Three_addr_OP::EQUALITY:
     op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
     op2 = "sete %dl";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "");
     break;
   case Three_addr_OP::NOT_EQUALITY:
     op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
     op2 = "setne %dl";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "");
     break;
   case Three_addr_OP::LESS_THAN:
     op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
     op2 = "setl %dl";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
+  case Three_addr_OP::LESS_THAN_EQUAL:
+    op1 = "xor %rdx, %rdx";
+    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
+    op2 = "setle %dl";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "");
     break;
   case Three_addr_OP::GREATER_THAN:
     op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1) + ", %rax";
+    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2) + ", %rax";
+    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
     op2 = "setg %dl";
     write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
+    write_to_file(m_asm_file, "\t" + op1, "");
+    break;
+  case Three_addr_OP::GREATER_THAN_EQUAL:
+    op1 = "xor %rdx, %rdx";
+    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
+    op2 = "setge %dl";
+    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
     write_to_file(m_asm_file, "\t" + op1, "");
     break;
   default:
-    m_asm_file << "Error, invalid op code passed to gen_asm_line " << std::endl;
+    m_asm_file << "Error, invalid op code passed to generate_asm_line " << std::endl;
     break;
   }
 }
 
 void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
 {
-  for (int i = node.m_start_index; i < node.m_end_index; i++)
+  for (int i = node.m_start_index; i <= node.m_end_index; i++)
   {
     Three_addr_var var_result = std::get<0>(m_three_addr_code[i]);
+    Three_addr_OP cur_op = std::get<1>(m_three_addr_code[i]);
     Three_addr_var var_1 = std::get<2>(m_three_addr_code[i]);
     Three_addr_var var_2 = std::get<3>(m_three_addr_code[i]);
 
-    x86_Register reg_1;
-    x86_Register reg_2;
-    x86_Register reg_result;
+    std::optional<x86_Register> reg_1;
+    std::optional<x86_Register> reg_2;
+    std::optional<x86_Register> reg_result;
+
+    std::string jmp_target = "";
 
     if (var_1.is_valid())
     {
       reg_1 = ensure(var_1, i + 1, node);
+      jmp_target = var_1.to_string();
     }
 
     if (var_2.is_valid())
@@ -356,55 +553,80 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
       reg_result = allocate_reg(var_result, i + 1, node);
     }
 
-    gen_asm_line(reg_result, std::get<1>(m_three_addr_code[i]), reg_1, reg_2);
+    generate_asm_line(reg_result, cur_op, reg_1, reg_2, jmp_target);
 
-    if (var_1.is_valid())
+    if (reg_1.has_value())
     {
       std::optional<int> next_var_1_use = dist_to_next_var_occurance(var_1, i + 1, node);
       if (next_var_1_use.has_value())
       {
-        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1)]) = next_var_1_use.value();
+        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1.value())]) = next_var_1_use.value();
       }
       else
       {
-        free(reg_1);
+        free(reg_1.value(), node);
       }
       print_next_var_use(var_1, next_var_1_use);
     }
 
-    if (var_2.is_valid())
+    if (reg_2.has_value())
     {
       std::optional<int> next_var_2_use = dist_to_next_var_occurance(var_2, i + 1, node);
       if (next_var_2_use.has_value())
       {
-        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2)]) = next_var_2_use.value();
+        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2.value())]) = next_var_2_use.value();
       }
       else
       {
-        free(reg_2);
+        free(reg_2.value(), node);
       }
       print_next_var_use(var_2, next_var_2_use);
     }
 
-    if (var_result.is_valid())
+    if (reg_result.has_value())
     {
       std::optional<int> next_var_result_use = dist_to_next_var_occurance(var_result, i + 1, node);
       if (next_var_result_use.has_value())
       {
-        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result)]) = next_var_result_use.value();
+        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result.value())]) = next_var_result_use.value();
       }
       else
       {
-        free(reg_result);
+        free(reg_result.value(), node);
       }
       print_next_var_use(var_result, next_var_result_use);
     }
+
+    save_live_out_vars(node);
     print_register_contents();
   }
 }
 
-x86_Register Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated, int start_index, const CFG_node &node)
+void Reg_allocator::save_live_out_vars(const CFG_node &node)
 {
+
+  for (const std::string &cur_live_out : node.m_live_out)
+  {
+    for (register_entry &cur_reg_entry : m_allocated_reg_data)
+    {
+      if (reg_entry_var(cur_reg_entry).is_string() && reg_entry_var(cur_reg_entry).to_string() == cur_live_out)
+      {
+        std::string source_reg_str = x86_Register_to_string(reg_entry_reg(cur_reg_entry));
+        std::string var_offset_str = std::to_string(get_var_offset_cond_add(reg_entry_var(cur_reg_entry).to_string()));
+        m_asm_file << "\tmov " << source_reg_str << ", -" << var_offset_str << "(%rbp)" << std::endl;
+        free(reg_entry_reg(cur_reg_entry), node);
+      }
+    }
+  }
+}
+
+std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated, int start_index, const CFG_node &node)
+{
+  /* If the var_to_be_allocated doesn't need a register, return an emtpy optional */
+  if (var_to_be_allocated.is_raw_str() || var_to_be_allocated.is_label())
+  {
+    return std::nullopt;
+  }
 
   /*  If a register already contains the value we're searching for, return that register */
   for (register_entry &entry : m_allocated_reg_data)
@@ -415,6 +637,7 @@ x86_Register Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated, in
     }
   }
 
+  /*  Allocate register if the value we need isn't contained inside a register */
   x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node);
 
   /*  Load variable into register */
@@ -481,6 +704,10 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
     }
 
     reg_entry_var(m_allocated_reg_data.at(next_furthest_use_index)) = var_to_be_allocated;
+    /*  
+        Set distance to next instruction to nullopt to ensure that this register 
+        isn't deallocated for another variable in the same intruction
+    */
     reg_entry_dist(m_allocated_reg_data.at(next_furthest_use_index)) = std::nullopt;
     m_register_free_status.at(next_furthest_use_index) = false;
 
@@ -488,7 +715,7 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
   }
 }
 
-void Reg_allocator::free(x86_Register reg_to_free)
+void Reg_allocator::free(x86_Register reg_to_free, const CFG_node &node)
 {
 
   int reg_index = static_cast<int>(reg_to_free);
@@ -497,6 +724,17 @@ void Reg_allocator::free(x86_Register reg_to_free)
   if (!m_register_free_status.at(reg_index))
   {
     m_free_reg_stack.push(reg_to_free);
+
+    /* Write variable in register to memory if that variable is in the live out set of node */
+    Three_addr_var &var_being_freed = reg_entry_var(m_allocated_reg_data.at(static_cast<int>(reg_to_free)));
+    if (var_being_freed.is_string() && node.m_live_out.count(var_being_freed.to_string()) != 0)
+    {
+      std::string source_reg_str = x86_Register_to_string(reg_to_free);
+      std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_being_freed.to_string()));
+      m_asm_file << "\tmov " << source_reg_str << ", -" << var_offset_str << "(%rbp)" << std::endl;
+      m_debug_log << "storing variable " << var_being_freed.to_string() << " with offset " << var_offset_str
+                  << std::endl;
+    }
 
     reg_entry_var(m_allocated_reg_data.at(reg_index)) = Three_addr_var();
     reg_entry_dist(m_allocated_reg_data.at(reg_index)) = std::nullopt;
@@ -507,7 +745,7 @@ void Reg_allocator::free(x86_Register reg_to_free)
 std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_var &search_var,
                                                              int start_index, const CFG_node &node)
 {
-  for (int cur_index = start_index; cur_index < node.m_end_index; cur_index++)
+  for (int cur_index = start_index; cur_index <= node.m_end_index; cur_index++)
   {
 
     three_addr_code_entry &cur_entry = m_three_addr_code.at(cur_index);

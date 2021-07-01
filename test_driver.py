@@ -82,6 +82,7 @@ def check_math_files():
 
 # Runs the testing functions
 if __name__ == "__main__":
+    subprocess.run(["make", "clean", "-C", "./math_test_files"])
     print("Generating files\n")
     subprocess.run(["python3", "gen_math_files.py"])
     print("Compiling files under gcc and custom_cc\n")

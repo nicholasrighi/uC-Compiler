@@ -300,9 +300,23 @@ expr            : NUMBER  {$$ = new Number($1);}
                                         binop_node->add_right_exp($3);
                                         $$ = binop_node;
                                       }
+                | expr OP_LESS_EQUAL expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("<=");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
                 | expr OP_GREATER_THAN expr     
                                       {
                                         Binop_dec* binop_node = new Binop_dec(">");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_GREATER_EQUAL expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec(">=");
                                         binop_node->add_left_exp($1);
                                         binop_node->add_right_exp($3);
                                         $$ = binop_node;
@@ -314,9 +328,23 @@ expr            : NUMBER  {$$ = new Number($1);}
                                         binop_node->add_right_exp($3);
                                         $$ = binop_node;
                                       }
+                | expr OP_LOG_AND expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("&&");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
                 | expr OP_BITWISE_OR expr     
                                       {
                                         Binop_dec* binop_node = new Binop_dec("|");
+                                        binop_node->add_left_exp($1);
+                                        binop_node->add_right_exp($3);
+                                        $$ = binop_node;
+                                      }
+                | expr OP_LOG_OR expr     
+                                      {
+                                        Binop_dec* binop_node = new Binop_dec("||");
                                         binop_node->add_left_exp($1);
                                         binop_node->add_right_exp($3);
                                         $$ = binop_node;

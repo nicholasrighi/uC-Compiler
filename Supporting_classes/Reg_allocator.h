@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 /*  Local includes */
 #include "../Visitor_classes/Three_addr_gen.h"
@@ -26,7 +27,6 @@ enum class x86_Register
   r14,
   r15,
   RCX,
-  RDX,
   RBX,
   RSI,
   RDI
@@ -37,7 +37,7 @@ std::string x86_Register_to_string(x86_Register);
 
 /*
     Stores a CFG_node and a flag indicating if that node has already had
-   assembly generated for it
+    assembly generated for it
 */
 using CFG_entry = std::pair<CFG_node, bool>;
 
@@ -46,7 +46,7 @@ using CFG_entry = std::pair<CFG_node, bool>;
     Three_addr_var =      The variable or constant being stored in the register
     x86_register =        physical register that variable name is mapped to
     std::optional<int> =  next nearest instruction that uses that variable (if
-  variable is used again)
+                              variable is used again)
 */
 using register_entry = std::tuple<Three_addr_var, x86_Register, std::optional<int>>;
 
@@ -59,7 +59,7 @@ class Reg_allocator
 public:
   /*  Creates a reg allocator that generates an assembly file with the specified
    * name */
-  Reg_allocator(std::string asm_file_name, std::ofstream& debug_log, Program_symbol_table &sym_table,
+  Reg_allocator(std::string asm_file_name, std::ofstream &debug_log, Program_symbol_table &sym_table,
                 std::vector<three_addr_code_entry> &three_addr_code);
 
   ~Reg_allocator();
@@ -71,12 +71,14 @@ public:
   void generate_asm_file();
 
 private:
+  /*  Print the CFG nodes to the file */
+  void print_CFG();
 
-  /*  Prints the contents of the registers to the debug log */ 
+  /*  Prints the contents of the registers to the debug log */
   void print_register_contents();
 
   /*  Helper function for printing the next use of a variable to the debug log */
-  void print_next_var_use(Three_addr_var& var, std::optional<int> next_use);
+  void print_next_var_use(Three_addr_var &var, std::optional<int> next_use);
 
   /*  Helper function for retrieving the Three_address var from a register entry */
   Three_addr_var &reg_entry_var(register_entry &);
@@ -91,33 +93,46 @@ private:
       Determines which variables should be added to the var_kill set and which
      variables should be added to the UEVar set for each node in the CFG
   */
-  void generate_varkill_uevar(CFG_node &node);
+  void generate_varkill_uevar();
 
   /*  Generates a control flow graph for m_three_addr_code */
   void generate_CFG();
 
   /*  Generates a live out set for each basic block in the CFG */
-  void create_live_out();
+  void generate_live_out_overall();
+
+  /*  
+      Generates the liveout set for the specified CFG_node based on all sucessors of the specified node 
+      Returns true if the live out set of the specified node has changed, false otherwise
+  */
+  bool generate_live_out_from_node(CFG_node &node);
 
   /*  Generates assembly based on the CFG node and the LiveOut set of each basic
    * block */
   void generate_assembly_from_CFG_node(const CFG_node &node);
 
-  /*  Generates a single line of assembly using up to three registers and one op
-   * code */
-  void gen_asm_line(x86_Register, Three_addr_OP, x86_Register, x86_Register);
+  /*
+      Saves all variables in node's live out set that reside in registers to memory
+      Then frees those registers
+  */
+  void save_live_out_vars(const CFG_node &node);
+
+  /*  Generates a single line of assembly using up to three registers and one op code */
+  void generate_asm_line(std::optional<x86_Register>, Three_addr_OP, std::optional<x86_Register>,
+                         std::optional<x86_Register>, std::string jmp_target = "");
 
   /*
     Allocates a register for the specified variable. If the variable is already
     stored in a register it returns that register. Otherwise it spills the
     variable that will be used furthest into the future into memory and returns
-    that now free register
+    that now free register. If var_to_be_allocated is a label or a raw string, then
+    ensure allocates nothing and returns an empty optional
   */
-  x86_Register ensure(const Three_addr_var &var_to_be_alloced, int start_index,
-                      const CFG_node &node);
+  std::optional<x86_Register> ensure(const Three_addr_var &var_to_be_alloced, int start_index,
+                                     const CFG_node &node);
 
   /*
-      Finds and returns the x86_Register that will be used the furthest in the
+     Finds and returns the x86_Register that will be used the furthest in the
      future. If that register contains a variable that will be used in the
      future, stores that variable to memory. Adds the passed Three_addr_var into
      m_allocated_reg_data
@@ -126,13 +141,10 @@ private:
                             int start_index, const CFG_node &node);
 
   /*
-      Frees the physical register specified in register entry. If the variable
-     being spilled is used in the future, then free writes that variable to the
-     stack (either allocating space for the variable if necessary, or adding the
-     variable to the symbol table if it's not already there) Then free adds the
-     newly freed physical register to m_free_physical_registers
+      Frees the specified register by setting it to free in m_register_free_status and 
+      putting the register onto m_free_reg_stack
   */
-  void free(x86_Register reg_to_free);
+  void free(x86_Register reg_to_free, const CFG_node& node);
 
   /*
     Returns the next instruction at which var_name is used. If var_name isn't
@@ -151,7 +163,7 @@ private:
   std::ofstream m_asm_file;
 
   /*  holds logging information to aid with debugging */
-  std::ofstream& m_debug_log;
+  std::ofstream &m_debug_log;
 
   /*  
       Holds user and temporary variables, as well as their offsets from the base pointer
@@ -164,6 +176,13 @@ private:
 
   /*  Vector of basic blocks. Each block will have assembly generated for it */
   std::vector<CFG_entry> m_cfg_graph;
+
+  /*  
+      Maps the start index of a cfg block to that node's index inside m_cfg_graph 
+        1st int:  start index
+        2nd int:  index of cfg node in m_cfg_graph
+  */
+  std::unordered_map<int, int> m_start_index_to_graph_index;
 
   /*
       m_allocated_reg_data[i] says what variable x86_Register(i) is holding, if

@@ -15,7 +15,9 @@
 
 enum class Three_addr_OP
 {
+  RAW_STR, 
   MOVE,
+  CMP,
   LOAD,
   ASSIGN,
   EQUALITY,
@@ -31,9 +33,14 @@ enum class Three_addr_OP
   DIVIDE,
   UMINUS,
   LESS_THAN,
+  LESS_THAN_EQUAL,
   GREATER_THAN,
+  GREATER_THAN_EQUAL,
   LOG_INVERT,
   RET,
+  UNCOND_J,
+  EQUAL_J,
+  NEQUAL_J,
   LABEL // LABEL indicates that the instruction is simply the destination of a jump instruction
 };
 
@@ -94,4 +101,10 @@ private:
 
   /*  file that contains output of print_IR_code() */
   std::ofstream& m_debug_log;
+
+  /*  
+      indicates if this is the top level stmt dec, for generating IR_code that should only be printed once 
+      at the start
+  */ 
+  bool m_top_level_stmt_dec = true;
 };
