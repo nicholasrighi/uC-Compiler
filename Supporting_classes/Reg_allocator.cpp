@@ -373,11 +373,6 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     }
   };
 
-  auto get_var_from_reg = [this](x86_Register reg)
-  {
-    return reg_entry_var(m_allocated_reg_data[static_cast<int>(reg)]).to_string();
-  };
-
   switch (op)
   {
   case Three_addr_OP::RAW_STR:
@@ -414,8 +409,8 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::RET:
-    asm_vec.push_back("\tmov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
-    asm_vec.push_back("\tret");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
+    asm_vec.push_back("ret");
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::BIT_AND:
@@ -449,7 +444,7 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     break;
   case Three_addr_OP::LABEL:
     asm_vec.push_back(jmp_target + ":");
-    write_to_file(m_asm_file, asm_vec);
+    write_to_file(m_asm_file, asm_vec, "");
     break;
   case Three_addr_OP::EQUALITY:
     asm_vec.push_back("xor %rdx, %rdx");

@@ -255,8 +255,8 @@ void Three_addr_gen::dispatch(Stmt_dec &node)
   if (m_top_level_stmt_dec)
   {
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, Three_addr_var("main", Three_addr_var_type::LABEL), Three_addr_var()));
-    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("\tmov %rsp, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
-    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("\tadd $-8, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("mov %rsp, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("add $-8, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
     m_top_level_stmt_dec = false;
   }
 
