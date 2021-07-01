@@ -363,17 +363,13 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
                                       std::string jmp_target)
 {
 
-  std::string op1;
-  std::string op2;
-  std::string op1_debug;
-  std::string op2_debug;
+  std::vector<std::string> asm_vec;
 
-  auto write_to_file = [&](std::ofstream &file, std::string s1, std::string s2)
+  auto write_to_file = [&](std::ofstream &file, std::vector<std::string> &asm_list, std::string delim = "\t")
   {
-    file << s1 << std::endl;
-    if (s2 != "")
+    for (const std::string &str : asm_list)
     {
-      file << s2 << std::endl;
+      file << delim << str << std::endl;
     }
   };
 
@@ -385,136 +381,123 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
   switch (op)
   {
   case Three_addr_OP::RAW_STR:
-    write_to_file(m_asm_file, jmp_target, "");
+    asm_vec.push_back(jmp_target);
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LOAD:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1.value()) << ", " << x86_Register_to_string(result_reg.value())
-               << std::endl;
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::STORE:
-    m_debug_log << "Storing value from " << x86_Register_to_string(reg_1.value()) << " into "
-                << x86_Register_to_string(result_reg.value()) << std::endl;
+    m_debug_log << "Storing value from " + x86_Register_to_string(reg_1.value()) + " into " + x86_Register_to_string(result_reg.value()) << std::endl;
     break;
   case Three_addr_OP::ADD:
-    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
-    op2 = "add " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("add " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::SUB:
-    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
-    op2 = "sub " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("sub " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::MULT:
-    m_asm_file << "\tmov " << x86_Register_to_string(reg_1.value()) << ", " << x86_Register_to_string(result_reg.value())
-               << std::endl;
-    m_asm_file << "\timul " << x86_Register_to_string(reg_2.value()) << ", " << x86_Register_to_string(result_reg.value())
-               << std::endl;
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("imul " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::DIVIDE:
-    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax";
-    op2 = "xor %rdx, %rdx";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "idiv " + x86_Register_to_string(reg_2.value());
-    op2 = "mov %rax, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("idiv " + x86_Register_to_string(reg_2.value()));
+    asm_vec.push_back("mov %rax, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::RET:
-    op1 = "\tmov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax";
-    op2 = "\tret";
-    write_to_file(m_asm_file, op1, op2);
+    asm_vec.push_back("\tmov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
+    asm_vec.push_back("\tret");
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::BIT_AND:
-    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
-    op2 = "and " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("and " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::BIT_OR:
-    op1 = "mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value());
-    op2 = "or " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("or " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::ASSIGN:
     if (reg_1.value() != result_reg.value())
     {
-      m_asm_file << "\tmov " << x86_Register_to_string(reg_1.value()) << ", " << x86_Register_to_string(result_reg.value())
-                 << std::endl;
+      asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+      write_to_file(m_asm_file, asm_vec);
     }
     break;
   case Three_addr_OP::CMP:
-    op1 = "cmp " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_2.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_2.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::UNCOND_J:
-    op1 = "jmp " + jmp_target;
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("jmp " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::EQUAL_J:
-    op1 = "je " + jmp_target;
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("je " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LABEL:
-    write_to_file(m_asm_file, jmp_target + ":", "");
+    asm_vec.push_back(jmp_target + ":");
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::EQUALITY:
-    op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
-    op2 = "sete %dl";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_vec.push_back("sete %dl");
+    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::NOT_EQUALITY:
-    op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
-    op2 = "setne %dl";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_vec.push_back("setne %dl");
+    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LESS_THAN:
-    op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
-    op2 = "setl %dl";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_vec.push_back("setl %dl");
+    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LESS_THAN_EQUAL:
-    op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
-    op2 = "setle %dl";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_vec.push_back("setle %dl");
+    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::GREATER_THAN:
-    op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
-    op2 = "setg %dl";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_vec.push_back("setg %dl");
+    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::GREATER_THAN_EQUAL:
-    op1 = "xor %rdx, %rdx";
-    op2 = "mov " + x86_Register_to_string(reg_1.value()) + ", %rax";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "cmp " + x86_Register_to_string(reg_2.value()) + ", %rax";
-    op2 = "setge %dl";
-    write_to_file(m_asm_file, "\t" + op1, "\t" + op2);
-    op1 = "mov %rdx, " + x86_Register_to_string(result_reg.value());
-    write_to_file(m_asm_file, "\t" + op1, "");
+    asm_vec.push_back("xor %rdx, %rdx");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_vec.push_back("setge %dl");
+    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
     break;
   default:
     m_asm_file << "Error, invalid op code passed to generate_asm_line " << std::endl;
