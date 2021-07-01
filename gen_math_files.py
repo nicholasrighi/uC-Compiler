@@ -48,6 +48,6 @@ def gen_test_file(file_number, num_of_vars):
 
 if __name__ == "__main__":
   random.seed(123)
-  for i in range(100):
+  for i in range(1000):
     gen_test_file(file_number = i, num_of_vars = 10)
 

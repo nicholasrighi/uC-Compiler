@@ -596,10 +596,9 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
       }
       print_next_var_use(var_result, next_var_result_use);
     }
-
-    save_live_out_vars(node);
     print_register_contents();
   }
+  save_live_out_vars(node);
 }
 
 void Reg_allocator::save_live_out_vars(const CFG_node &node)
