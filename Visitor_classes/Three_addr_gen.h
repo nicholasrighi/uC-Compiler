@@ -73,10 +73,10 @@ public:
   void dispatch(Var_ref &node) override;
   void dispatch(While_dec &node) override;
 
+  /* Writes the Three_addr_code output to the debug log */
+  void print_IR_code();
 
 private:
-  /*  writes a three_addr_code entry to m_debug_log */
-  void print_IR_code(three_addr_code_entry& IR_node);
 
   /* returns the next avaliable temporary variable */
   std::string gen_temp();

@@ -152,5 +152,6 @@ int main(int argc, char **argv)
     return -1;
   }
 
+  IR_generator.print_IR_code();
   reg_allocator.generate_asm_file();
 }

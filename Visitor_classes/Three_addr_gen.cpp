@@ -35,30 +35,33 @@ std::string Three_addr_gen::gen_label()
   return ".L" + std::to_string(stored_index);
 }
 
-void Three_addr_gen::print_IR_code(three_addr_code_entry &IR_entry)
+void Three_addr_gen::print_IR_code()
 {
-  /*  Print out the new temporary, if one exists */
-  if (std::get<0>(IR_entry).is_valid())
+  for (three_addr_code_entry &IR_entry : m_intermediate_rep)
   {
-    m_debug_log << std::get<0>(IR_entry).to_string() << " = ";
+    /*  Print out the new temporary, if one exists */
+    if (std::get<0>(IR_entry).is_valid())
+    {
+      m_debug_log << std::get<0>(IR_entry).to_string() << " = ";
+    }
+
+    /*  Print out operator, which will always exist */
+    m_debug_log << three_op_to_string(std::get<1>(IR_entry)) << " ";
+
+    /*  Print out first temporary being used, if it exists */
+    if (std::get<2>(IR_entry).is_valid())
+    {
+      m_debug_log << std::get<2>(IR_entry).to_string() << ",";
+    }
+
+    /*  Print out second temporary being used, if it exists */
+    if (std::get<3>(IR_entry).is_valid())
+    {
+      m_debug_log << std::get<3>(IR_entry).to_string();
+    }
+
+    m_debug_log << std::endl;
   }
-
-  /*  Print out operator, which will always exist */
-  m_debug_log << three_op_to_string(std::get<1>(IR_entry)) << " ";
-
-  /*  Print out first temporary being used, if it exists */
-  if (std::get<2>(IR_entry).is_valid())
-  {
-    m_debug_log << std::get<2>(IR_entry).to_string() << ",";
-  }
-
-  /*  Print out second temporary being used, if it exists */
-  if (std::get<3>(IR_entry).is_valid())
-  {
-    m_debug_log << std::get<3>(IR_entry).to_string();
-  }
-
-  m_debug_log << std::endl;
 }
 
 /*
@@ -203,29 +206,20 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     Three_addr_var neither_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
     Three_addr_var result_temp = gen_temp();
 
-    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp)); 
-    print_IR_code(m_intermediate_rep.back());
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp));
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, either_arg_is_zero, Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
-    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp)); 
-    print_IR_code(m_intermediate_rep.back());
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp));
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, either_arg_is_zero, Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
     m_intermediate_rep.push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(1), Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, neither_arg_is_zero, Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, either_arg_is_zero, Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
     m_intermediate_rep.push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(0), Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, neither_arg_is_zero, Three_addr_var()));
     m_last_entry = result_temp;
   }
   else if (node.m_op == "||")
   {
   }
-  print_IR_code(m_intermediate_rep.back());
 }
 
 void Three_addr_gen::dispatch(Func_dec &node)
@@ -253,20 +247,16 @@ void Three_addr_gen::dispatch(Return_dec &node)
   node.m_return_value->accept(*this);
 
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, m_last_entry, Three_addr_var()));
-
-  print_IR_code(m_intermediate_rep.back());
 }
 
 void Three_addr_gen::dispatch(Stmt_dec &node)
 {
 
-  if (m_top_level_stmt_dec) {
+  if (m_top_level_stmt_dec)
+  {
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, Three_addr_var("main", Three_addr_var_type::LABEL), Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
-    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("\tmov %rsp, %rbp", Three_addr_var_type::RAW_STR) , Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("\tmov %rsp, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("\tadd $-8, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
-    print_IR_code(m_intermediate_rep.back());
     m_top_level_stmt_dec = false;
   }
 
@@ -384,11 +374,16 @@ std::string three_op_to_string(Three_addr_OP op)
   {
     return "CMP";
   }
-  else if (op == Three_addr_OP::UNCOND_J){
+  else if (op == Three_addr_OP::UNCOND_J)
+  {
     return "J";
-  } else if (op == Three_addr_OP::EQUAL_J){
+  }
+  else if (op == Three_addr_OP::EQUAL_J)
+  {
     return "JE";
-  } else if (op == Three_addr_OP::RAW_STR) {
+  }
+  else if (op == Three_addr_OP::RAW_STR)
+  {
     return "RAW str: ";
   }
   return "Error, invalid op recieved";
