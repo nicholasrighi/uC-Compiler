@@ -77,6 +77,7 @@ void Three_addr_gen::remove_unused_labels()
       jmp_targets.insert(std::get<2>(entry).to_string());
     }
 
+    /* Only add labels to the IR code if some earlier jmp instruction targets them */
     if (std::get<1>(entry) == Three_addr_OP::LABEL)
     {
       if (std::get<2>(entry).to_string() == "main" || jmp_targets.count(std::get<2>(entry).to_string()) == 1)
@@ -93,26 +94,102 @@ void Three_addr_gen::remove_unused_labels()
   m_intermediate_rep = std::move(optimized_IR_code);
 }
 
+void Three_addr_gen::merge_adjacent_labels()
+{
+
+  std::unordered_map<std::string, std::string> replace_label_mapping;
+
+  /*  Maps adjacent labels to the first label in the sequence */
+  auto add_adjacent_labels = [this](std::string label_to_use,
+                                    std::unordered_map<std::string, std::string> &str_mapping,
+                                    int start_index)
+  {
+    for (int i = start_index; i < m_intermediate_rep.size(); i++)
+    {
+      if (std::get<1>(m_intermediate_rep.at(i)) == Three_addr_OP::LABEL)
+      {
+        str_mapping.insert({std::get<2>(m_intermediate_rep.at(i)).to_string(), label_to_use});
+      }
+      else
+      {
+        return i;
+      }
+    }
+    return -1;
+  };
+
+  /*  generates mapping between labels that are redudant and the labels to replace them */
+  for (int cur_index = 0; cur_index < m_intermediate_rep.size(); cur_index++)
+  {
+    if (cur_index != 0)
+    {
+
+      Three_addr_OP prev_inst = std::get<1>(m_intermediate_rep.at(cur_index - 1));
+      Three_addr_OP cur_isnt = std::get<1>(m_intermediate_rep.at(cur_index));
+
+      Three_addr_var prev_var = std::get<2>(m_intermediate_rep.at(cur_index - 1));
+      Three_addr_var cur_var = std::get<2>(m_intermediate_rep.at(cur_index));
+
+      if (cur_isnt == Three_addr_OP::LABEL && prev_inst == Three_addr_OP::LABEL)
+      {
+        cur_index = add_adjacent_labels(prev_var.to_string(), replace_label_mapping, cur_index);
+      }
+    }
+  }
+
+  std::vector<three_addr_code_entry> optimized_code;
+
+  for (three_addr_code_entry &entry : m_intermediate_rep)
+  {
+    Three_addr_OP cur_inst = std::get<1>(entry);
+    std::string jmp_target = std::get<2>(entry).to_string();
+
+    /*  only add label to optimized code if it's not a subsequent label */
+    if (cur_inst == Three_addr_OP::LABEL)
+    {
+      if (replace_label_mapping.count(jmp_target) == 0)
+        {
+          optimized_code.push_back(entry);
+        }
+    }
+    /*  Replace jmp target with new label if that jmp target is a subsequent label */
+    else if (cur_inst == Three_addr_OP::EQUAL_J || cur_inst == Three_addr_OP::UNCOND_J || cur_inst == Three_addr_OP::NEQUAL_J)
+    {
+      if (replace_label_mapping.count(jmp_target) == 1)
+      {
+        std::get<2>(entry) = Three_addr_var(replace_label_mapping.at(jmp_target), Three_addr_var_type::LABEL);
+      }
+      optimized_code.push_back(entry);
+    }
+    else
+    {
+      optimized_code.push_back(entry);
+    }
+  }
+  m_intermediate_rep = std::move(optimized_code);
+}
+
 void Three_addr_gen::print_IR_code()
 {
-  for (three_addr_code_entry &IR_entry : m_intermediate_rep)
+  for (int i = 0; i < m_intermediate_rep.size(); i++)
   {
-    /*  Print out the new temporary, if one exists */
+
+    three_addr_code_entry &IR_entry = m_intermediate_rep.at(i);
+
+    m_debug_log << std::to_string(i) << ": ";
+
     if (std::get<0>(IR_entry).is_valid())
     {
       m_debug_log << std::get<0>(IR_entry).to_string() << " = ";
     }
 
-    /*  Print out operator, which will always exist */
     m_debug_log << three_op_to_string(std::get<1>(IR_entry)) << " ";
 
-    /*  Print out first temporary being used, if it exists */
     if (std::get<2>(IR_entry).is_valid())
     {
       m_debug_log << std::get<2>(IR_entry).to_string() << ",";
     }
 
-    /*  Print out second temporary being used, if it exists */
     if (std::get<3>(IR_entry).is_valid())
     {
       m_debug_log << std::get<3>(IR_entry).to_string();
@@ -372,6 +449,7 @@ void Three_addr_gen::dispatch(Stmt_dec &node)
   {
     remove_op_trailing_return();
     remove_unused_labels();
+    merge_adjacent_labels();
   }
 }
 

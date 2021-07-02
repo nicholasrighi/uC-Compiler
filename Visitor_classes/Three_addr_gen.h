@@ -85,6 +85,12 @@ private:
   /*  Removes labels that aren't the targets of any jmp instructions from m_intermediate_rep */ 
   void remove_unused_labels();
 
+  /*  
+      Replaces adjacent labels with a single label. Replaces all references to deleted labels with references
+      to the new labels
+  */
+  void merge_adjacent_labels();
+
   /* returns the next avaliable temporary variable */
   std::string gen_temp();
 
