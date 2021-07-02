@@ -76,7 +76,14 @@ public:
   /* Writes the Three_addr_code output to the debug log */
   void print_IR_code();
 
+
 private:
+
+  /*  Removes any instructions from m_intermediate_rep following a return statement that won't be executed */
+  void remove_op_trailing_return();
+
+  /*  Removes labels that aren't the targets of any jmp instructions from m_intermediate_rep */ 
+  void remove_unused_labels();
 
   /* returns the next avaliable temporary variable */
   std::string gen_temp();

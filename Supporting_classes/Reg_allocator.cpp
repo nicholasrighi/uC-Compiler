@@ -218,16 +218,16 @@ std::optional<int> &Reg_allocator::reg_entry_dist(register_entry &reg_entry)
 }
 
 /*  
-  Iteratres through m_three_addr_code and locates basic blocks. Adds any basic blocks found to the 
-  m_cfg_graph. 
+  Iteratres through m_three_addr_code and adds any basic blocks found to m_cfg_graph
 
   Basic block defintion:
-      Basic block starts at:  label OR after a jump instruction
-      Basic block ends at:    at a jump instruction (jump IS included in the basic block) OR before a 
-                                label instruction (label is NOT included in the basic block)
+      Basic block starts:     at a label OR after a jump instruction 
+      Basic block ends:       at a jump instruction (jump IS included in the basic block) OR before a 
+                                label instruction (label is NOT included in the basic block) OR at 
+                                return statement
 
-  Each basic block has either [0,2] children:
-      return statements/last instruction in the list have 0 children
+  Basic blocks have [0,2] children:
+      return statements/last instruction in the IR code have 0 children
       unconditional jumps have 1 child (the jump target) 
       conditional jumps have 2 targets (the jump target and the fall through target)
 */
@@ -251,43 +251,52 @@ void Reg_allocator::generate_CFG()
   {
     Three_addr_OP cur_inst = std::get<1>(m_three_addr_code.at(cur_index));
 
-    /*  Basic blocks end at the beginning of a jump instruction */
+    /*  
+        End at:
+            1)  if current instruction is jmp
+            2)  if current instruction is a return statement
+            3)  if next instruction is label
+            4)  if at end of three_addr_code
+    */
     if (cur_inst == Three_addr_OP::UNCOND_J)
     {
       int jmp_target = label_to_index_map.at(std::get<2>(m_three_addr_code.at(cur_index)).to_string());
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, jmp_target), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+      start_of_current_block = cur_index + 1;
     }
-    else if (cur_inst == Three_addr_OP::EQUAL_J)
+    else if (cur_inst == Three_addr_OP::EQUAL_J || cur_inst == Three_addr_OP::NEQUAL_J)
     {
       int fall_through_target = cur_index + 1;
       int jmp_target = label_to_index_map.at(std::get<2>(m_three_addr_code.at(cur_index)).to_string());
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, jmp_target, fall_through_target), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+      start_of_current_block = cur_index + 1;
     }
-    /*  Basic blocks start at a label */
-    else if (cur_inst == Three_addr_OP::LABEL)
+    else if (std::get<1>(m_three_addr_code.at(cur_index)) == Three_addr_OP::RET)
     {
-      start_of_current_block = cur_index;
+      m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index), false});
+      m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+      start_of_current_block = cur_index + 1;
     }
-    /*  Basic blocks start after a jump instruction */
-    else if (cur_index != 0 && (std::get<1>(m_three_addr_code.at(cur_index - 1)) == Three_addr_OP::UNCOND_J ||
-                                std::get<1>(m_three_addr_code.at(cur_index - 1)) == Three_addr_OP::EQUAL_J))
-    {
-      start_of_current_block = cur_index;
-    }
-    /*  Basic blocks end before a label */
     else if (cur_index != m_three_addr_code.size() - 1 &&
              std::get<1>(m_three_addr_code.at(cur_index + 1)) == Three_addr_OP::LABEL)
     {
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, cur_index + 1), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
     }
-    /*  End current block if this is the last instruction in the list */
     else if (cur_index == m_three_addr_code.size() - 1)
     {
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
+    }
+    /*
+      Start at:
+          1)  if current instruction is a label
+    */
+    else if (cur_inst == Three_addr_OP::LABEL)
+    {
+      start_of_current_block = cur_index;
     }
   }
 }
@@ -440,6 +449,10 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     break;
   case Three_addr_OP::EQUAL_J:
     asm_vec.push_back("je " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
+    break;
+  case Three_addr_OP::NEQUAL_J:
+    asm_vec.push_back("jne " + jmp_target);
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LABEL:

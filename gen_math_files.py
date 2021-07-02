@@ -33,7 +33,7 @@ def gen_test_file(file_number, num_of_vars):
       math_file.write("\t" + var + " = " + str(random.randrange(1, 10)) + ";\n")
     math_file.write("\tresult = ")
 
-    op_list = [" + ", " - ", " * ", " / ", " & ", " | ", " < ", " > ", " >= ", " <= ", " && "]
+    op_list = [" + ", " - ", " * ", " / ", " & ", " | ", " < ", " > ", " >= ", " <= ", " && ", " || "]
 
     # perform random math operations on all variables
     for var in var_list[:-1]:

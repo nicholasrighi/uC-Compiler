@@ -3,6 +3,7 @@
 
 // System includes
 #include <iostream>
+#include <set>
 
 // AST nodes
 #include "../AST_classes/Array_access.h"
@@ -33,6 +34,63 @@ std::string Three_addr_gen::gen_label()
   int stored_index = m_label_index;
   m_label_index++;
   return ".L" + std::to_string(stored_index);
+}
+
+void Three_addr_gen::remove_op_trailing_return()
+{
+
+  bool in_return_stmt = false;
+
+  std::vector<three_addr_code_entry> optimized_three_addr_code;
+
+  for (three_addr_code_entry &entry : m_intermediate_rep)
+  {
+    if (std::get<1>(entry) == Three_addr_OP::LABEL)
+    {
+      in_return_stmt = false;
+    }
+    if (!in_return_stmt)
+    {
+      optimized_three_addr_code.push_back(entry);
+    }
+    if (std::get<1>(entry) == Three_addr_OP::RET)
+    {
+      in_return_stmt = true;
+    }
+  }
+
+  m_intermediate_rep = std::move(optimized_three_addr_code);
+}
+
+void Three_addr_gen::remove_unused_labels()
+{
+
+  std::set<std::string> jmp_targets;
+
+  std::vector<three_addr_code_entry> optimized_IR_code;
+
+  for (three_addr_code_entry &entry : m_intermediate_rep)
+  {
+    if (std::get<1>(entry) == Three_addr_OP::UNCOND_J || std::get<1>(entry) == Three_addr_OP::NEQUAL_J ||
+        std::get<1>(entry) == Three_addr_OP::EQUAL_J)
+    {
+      jmp_targets.insert(std::get<2>(entry).to_string());
+    }
+
+    if (std::get<1>(entry) == Three_addr_OP::LABEL)
+    {
+      if (std::get<2>(entry).to_string() == "main" || jmp_targets.count(std::get<2>(entry).to_string()) == 1)
+      {
+        optimized_IR_code.push_back(entry);
+      }
+    }
+    else
+    {
+      optimized_IR_code.push_back(entry);
+    }
+  }
+
+  m_intermediate_rep = std::move(optimized_IR_code);
 }
 
 void Three_addr_gen::print_IR_code()
@@ -219,6 +277,22 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   }
   else if (node.m_op == "||")
   {
+    Three_addr_var either_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var neither_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var return_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var result_temp = gen_temp();
+
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, either_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, neither_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, either_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(1), Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, return_label, Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, neither_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(0), Three_addr_var()));
+    m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, return_label, Three_addr_var()));
+    m_last_entry = result_temp;
   }
 }
 
@@ -234,6 +308,31 @@ void Three_addr_gen::dispatch(Func_ref &node)
 
 void Three_addr_gen::dispatch(If_dec &node)
 {
+  node.m_cond->accept(*this);
+
+  Three_addr_var if_false_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+  Three_addr_var end_of_if_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+
+  /* Drop through condition is taken if condition evaluates to 1, otherwise jump to false part of if/else statement */
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, if_false_label, Three_addr_var()));
+
+  /* Insert instructions corresponding to condition being true */
+  if (node.m_stmt_if_true != nullptr)
+  {
+    node.m_stmt_if_true->accept(*this);
+  }
+
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, end_of_if_label, Three_addr_var()));
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, if_false_label, Three_addr_var()));
+
+  /* Insert instructions corresponding to condition being false */
+  if (node.m_stmt_if_false != nullptr)
+  {
+    node.m_stmt_if_false->accept(*this);
+  }
+
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, end_of_if_label, Three_addr_var()));
 }
 
 void Three_addr_gen::dispatch(Number &node)
@@ -252,6 +351,8 @@ void Three_addr_gen::dispatch(Return_dec &node)
 void Three_addr_gen::dispatch(Stmt_dec &node)
 {
 
+  bool saved_top_level = m_top_level_stmt_dec;
+
   if (m_top_level_stmt_dec)
   {
     m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, Three_addr_var("main", Three_addr_var_type::LABEL), Three_addr_var()));
@@ -264,6 +365,13 @@ void Three_addr_gen::dispatch(Stmt_dec &node)
   for (auto &sub_expr : node.m_sub_expressions)
   {
     sub_expr->accept(*this);
+  }
+
+  /*  remove any instructions that can't be reached from m_intermediate_rep */
+  if (saved_top_level)
+  {
+    remove_op_trailing_return();
+    remove_unused_labels();
   }
 }
 
@@ -382,9 +490,21 @@ std::string three_op_to_string(Three_addr_OP op)
   {
     return "JE";
   }
+  else if (op == Three_addr_OP::NEQUAL_J)
+  {
+    return "JNE";
+  }
   else if (op == Three_addr_OP::RAW_STR)
   {
     return "RAW str: ";
+  }
+  else if (op == Three_addr_OP::EQUALITY)
+  {
+    return "EQUAL ";
+  }
+  else if (op == Three_addr_OP::NOT_EQUALITY)
+  {
+    return "NOT EQUAL ";
   }
   return "Error, invalid op recieved";
 }
