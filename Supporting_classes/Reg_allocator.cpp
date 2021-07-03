@@ -334,13 +334,6 @@ bool Reg_allocator::generate_live_out_from_node(CFG_node &node)
     start_indicies_child_nodes.push_back(node.m_fall_through_target.value());
   }
 
-  /* Recalculate child nodes liveout */
-  for (int cur_index : start_indicies_child_nodes)
-  {
-    CFG_node &child_node = m_cfg_graph.at(m_start_index_to_graph_index.at(cur_index)).first;
-    generate_live_out_from_node(child_node);
-  }
-
   /*  Save old liveout size to see if the size changes after we recompute live_out */
   int prev_live_out_size = node.m_live_out.size();
 
