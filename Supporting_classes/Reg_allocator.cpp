@@ -534,7 +534,15 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
 
     if (var_result.is_valid())
     {
-      reg_result = allocate_reg(var_result, i + 1, node);
+      std::optional<x86_Register> allocated_var = find_allocated_var(var_result);
+      if (allocated_var.has_value())
+      {
+        reg_result = allocated_var;
+      }
+      else
+      {
+        reg_result = allocate_reg(var_result, i + 1, node);
+      }
     }
 
     generate_asm_line(reg_result, cur_op, reg_1, reg_2, jmp_target);
@@ -611,13 +619,11 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
     return std::nullopt;
   }
 
-  /*  If a register already contains the value we're searching for, return that register */
-  for (register_entry &entry : m_allocated_reg_data)
+  std::optional<x86_Register> allocated_value = find_allocated_var(var_to_be_allocated);
+
+  if (allocated_value.has_value())
   {
-    if (reg_entry_var(entry) == var_to_be_allocated)
-    {
-      return reg_entry_reg(entry);
-    }
+    return allocated_value;
   }
 
   /*  Allocate register if the value we need isn't contained inside a register */
@@ -723,6 +729,18 @@ void Reg_allocator::free(x86_Register reg_to_free, const CFG_node &node)
     reg_entry_dist(m_allocated_reg_data.at(reg_index)) = std::nullopt;
     m_register_free_status[reg_index] = true;
   }
+}
+
+std::optional<x86_Register> Reg_allocator::find_allocated_var(const Three_addr_var &var_to_be_allocated)
+{
+  for (register_entry &entry : m_allocated_reg_data)
+  {
+    if (reg_entry_var(entry) == var_to_be_allocated)
+    {
+      return reg_entry_reg(entry);
+    }
+  }
+  return std::nullopt;
 }
 
 std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_var &search_var,

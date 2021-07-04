@@ -147,6 +147,12 @@ private:
   void free(x86_Register reg_to_free, const CFG_node& node);
 
   /*
+      If the specified variable is contained in a register returns that register. Otherwise returns
+      an empty optional
+  */
+  std::optional<x86_Register> find_allocated_var(const Three_addr_var& var_to_be_allocated);
+
+  /*
     Returns the next instruction at which var_name is used. If var_name isn't
     used after start_index, returns an empty optional
   */

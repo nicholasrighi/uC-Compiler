@@ -475,8 +475,8 @@ void Three_addr_gen::dispatch(Var_ref &node)
 
 void Three_addr_gen::dispatch(While_dec &node)
 {
-  Three_addr_var body_label(gen_label());
-  Three_addr_var condition_label(gen_label());
+  Three_addr_var body_label(gen_label(), Three_addr_var_type::LABEL);
+  Three_addr_var condition_label(gen_label(), Three_addr_var_type::LABEL);
 
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, condition_label, Three_addr_var()));
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, body_label, Three_addr_var()));
