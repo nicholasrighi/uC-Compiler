@@ -1,5 +1,6 @@
 // Implements
 #include "Function_symbol_table.h"
+#include "../AST_classes/Array_dec.h"
 
 // System includes
 #include <iostream>
@@ -9,7 +10,7 @@ Function_symbol_table::Function_symbol_table()
   m_chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
 }
 
-bool Function_symbol_table::add_var(std::string name, Var_dec* var_dec, Var_storage var_storage)
+bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_storage var_storage)
 {
   sym_table_entry sym_entry(var_dec, var_storage, m_local_var_offset);
   {
@@ -18,7 +19,14 @@ bool Function_symbol_table::add_var(std::string name, Var_dec* var_dec, Var_stor
       return false;
     }
     m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
-    m_local_var_offset += 8;
+    if (var_dec != nullptr && var_dec->m_obj_type == Object_type::ARRAY)
+    {
+      m_local_var_offset += ((dynamic_cast<Array_dec *>(var_dec))->m_array_size) * 8;
+    }
+    else
+    {
+      m_local_var_offset += 8;
+    }
     return true;
   }
 }
@@ -37,7 +45,8 @@ std::optional<Var_dec *> Function_symbol_table::get_var_dec(std::string name)
   return std::nullopt;
 }
 
-std::optional<int> Function_symbol_table::get_var_offset(std::string name) {
+std::optional<int> Function_symbol_table::get_var_offset(std::string name)
+{
   /* only start checking at the current scope, not the most nested scope */
   for (int cur_index = m_table_level; cur_index >= 0; cur_index--)
   {
@@ -68,11 +77,13 @@ void Function_symbol_table::add_scope()
   m_table_level++;
 }
 
-bool Function_symbol_table::increment_scope() {
+bool Function_symbol_table::increment_scope()
+{
   m_table_level++;
   return !(m_table_level >= m_chained_sym_table.size());
 }
 
-void Function_symbol_table::reset_scope() {
+void Function_symbol_table::reset_scope()
+{
   m_table_level = 0;
 }

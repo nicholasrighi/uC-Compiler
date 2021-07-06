@@ -151,9 +151,9 @@ void Three_addr_gen::merge_adjacent_labels()
     if (cur_inst == Three_addr_OP::LABEL)
     {
       if (replace_label_mapping.count(jmp_target) == 0)
-        {
-          optimized_code.push_back(entry);
-        }
+      {
+        optimized_code.push_back(entry);
+      }
     }
     /*  Replace jmp target with new label if that jmp target is a subsequent label */
     else if (cur_inst == Three_addr_OP::EQUAL_J || cur_inst == Three_addr_OP::UNCOND_J || cur_inst == Three_addr_OP::NEQUAL_J)
@@ -215,28 +215,42 @@ Three_addr_gen::Three_addr_gen(std::ofstream &debug_log, Program_symbol_table &s
 }
 
 /*
-    Computes IR code for address of array element
+    Computes IR code for address of array element, DOES NOT load the value at the access address into memory.
+    This is because expressions of the form a[x] = a[y] + z require a[y] to be loaded into memory but requires
+    a[x] to be stored to memory. So the parent node needs to determine if we should load from or store to the 
+    address that this dispatch method calculates
 */
 void Three_addr_gen::dispatch(Array_access &node)
 {
   /*  compute temporary for array access */
   node.m_access_index->accept(*this);
 
-  /*  Need to multiply value of m_last_entry by 8, since all of our variables are 8 bytes wide. */
-  /*
+  /*  Multiply value of m_last_entry by 8, since all of our variables are 8 bytes wide. */
   Three_addr_var scaled_access_temp(gen_temp());
-  three_addr_code_entry scaled_access_index =
+  three_addr_code_entry scaled_access_inst =
       std::make_tuple(scaled_access_temp, Three_addr_OP::MULT, m_last_entry, Three_addr_var(8));
 
+  /*  Make address negative to handle offsets correctly */
+  Three_addr_var neg_access_temp(gen_temp());
+  three_addr_code_entry neg_access_inst =
+      std::make_tuple(neg_access_temp, Three_addr_OP::SUB, Three_addr_var(0), scaled_access_temp);
+
   Three_addr_var final_addr_temp(gen_temp());
-  three_addr_code_entry dest_addr =
-      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, Three_addr_var(node.m_var->m_name, true), scaled_access_temp);
+  three_addr_code_entry final_addr_inst =
+      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, Three_addr_var(node.m_var->m_name, Three_addr_var_type::ARRAY), neg_access_temp);
 
-  m_last_entry = final_addr_temp;
+  Three_addr_var loaded_value_temp(gen_temp());
+  three_addr_code_entry loaded_value_inst =
+      std::make_tuple(loaded_value_temp, Three_addr_OP::LOAD, final_addr_temp, Three_addr_var());
 
-  m_intermediate_rep.push_back(scaled_access_index);
-  m_intermediate_rep.push_back(dest_addr);
-  */
+  m_last_entry = loaded_value_temp;
+
+  m_intermediate_rep.push_back(scaled_access_inst);
+  m_intermediate_rep.push_back(neg_access_inst);
+  m_intermediate_rep.push_back(final_addr_inst);
+  m_intermediate_rep.push_back(loaded_value_inst);
+
+  m_child_is_array_dec = true;
 }
 
 /* 
@@ -253,12 +267,19 @@ void Three_addr_gen::dispatch(Array_dec &node)
 */
 void Three_addr_gen::dispatch(Binop_dec &node)
 {
-  /*  Calculate left and right sub expressions */
-  node.m_left->accept(*this);
-  Three_addr_var left_temp = m_last_entry;
-
   node.m_right->accept(*this);
   Three_addr_var right_temp = m_last_entry;
+  bool right_child_is_array = m_child_is_array_dec;
+  m_child_is_array_dec = false;
+
+  /*  
+      Need to visit left side second to ensure that the '=' operator functions correctly when the left side is 
+      an array
+  */
+  node.m_left->accept(*this);
+  Three_addr_var left_temp = m_last_entry;
+  bool left_child_is_array = m_child_is_array_dec;
+  m_child_is_array_dec = false;
 
   /* Map operators that have corresponding machine instructions */
   if (node.m_op == "+")
@@ -313,18 +334,22 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   }
   else if (node.m_op == "=")
   {
-    // TODO. Need to check if the variable is an array. If it is an array, then need to store value to memory
-    // instead of loading it into a register
-    if (left_temp.is_string())
+    /*  
+        If left child is an array, then we don't need to load the value from the array access into memory, which is what 
+        the Array_access visitor node does by default. Instead we need to store the right hand side to the array access
+        addr
+    */
+    if (left_child_is_array)
     {
-      m_intermediate_rep.push_back(std::make_tuple(left_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
+      m_intermediate_rep.pop_back();
+      Three_addr_var &store_addr_tmp = std::get<0>(m_intermediate_rep.back());
+      m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::STORE, store_addr_tmp, right_temp));
     }
     else
     {
-      Three_addr_var new_temp = gen_temp();
-      m_intermediate_rep.push_back(std::make_tuple(new_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
-      m_last_entry = new_temp;
+      m_intermediate_rep.push_back(std::make_tuple(left_temp, Three_addr_OP::ASSIGN, right_temp, Three_addr_var()));
     }
+    m_last_entry = left_temp;
   }
   else if (node.m_op == "==")
   {
@@ -481,7 +506,8 @@ void Three_addr_gen::dispatch(While_dec &node)
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, condition_label, Three_addr_var()));
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, body_label, Three_addr_var()));
 
-  if (node.m_body != nullptr) {
+  if (node.m_body != nullptr)
+  {
     node.m_body->accept(*this);
   }
 
@@ -490,8 +516,7 @@ void Three_addr_gen::dispatch(While_dec &node)
   node.m_cond->accept(*this);
 
   m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
-  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, body_label , Three_addr_var()));
-
+  m_intermediate_rep.push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, body_label, Three_addr_var()));
 }
 
 std::string three_op_to_string(Three_addr_OP op)

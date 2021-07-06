@@ -382,11 +382,12 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LOAD:
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("mov (%rbp," + x86_Register_to_string(reg_1.value()) + ",1), " + x86_Register_to_string(result_reg.value()));
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::STORE:
-    m_debug_log << "Storing value from " + x86_Register_to_string(reg_1.value()) + " into " + x86_Register_to_string(result_reg.value()) << std::endl;
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", (%rbp," + x86_Register_to_string(reg_1.value()) + ",1)");
+    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::ADD:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
@@ -636,6 +637,12 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
     std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
     m_asm_file << "\tmov -" << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
     m_debug_log << "loading variable from offset " << var_offset_str << " into register " << source_reg_str << std::endl;
+  }
+  else if (var_to_be_allocated.is_array())
+  {
+    std::string var_offset_str =
+        std::to_string(m_prog_sym_table.get_var_offset(var_to_be_allocated.to_string()).value());
+    m_asm_file << "\tmov $-" << var_offset_str << ", " << x86_Register_to_string(newly_freed_register) << std::endl;
   }
   else
   {

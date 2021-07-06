@@ -7,7 +7,7 @@ enum class Three_addr_var_type
 {
   CONSTANT,     //  a numerical constant 
   SCALAR_VAR,   //  a named variable (user defined or compiler generated) that holds a single value
-  ARRAY,        //  a named variable (user defined or compiler generated) that holds a single value
+  ARRAY,        //  a named variable that is an array
   LABEL,        //  the target of a jump instruction
   RAW_STR,      //  indicates that the string contained in the three_addr_var should be written 
                 //      directly to the assembly file 

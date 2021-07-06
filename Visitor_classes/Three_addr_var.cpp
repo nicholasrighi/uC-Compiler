@@ -55,6 +55,10 @@ bool Three_addr_var::is_const() const {
   return m_var_type == Three_addr_var_type::CONSTANT;
 }
 
+bool Three_addr_var::is_array() const {
+  return m_var_type == Three_addr_var_type::ARRAY;
+}
+
 bool Three_addr_var::operator==(const Three_addr_var &other) const
 {
   if (this->is_valid() != other.is_valid())

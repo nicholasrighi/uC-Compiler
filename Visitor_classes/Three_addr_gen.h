@@ -120,4 +120,7 @@ private:
       at the start
   */ 
   bool m_top_level_stmt_dec = true;
+
+  /*  indicates if the immediate left or right child of a Binop node is an array */
+  bool m_child_is_array_dec = false;
 };

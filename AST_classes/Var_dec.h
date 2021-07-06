@@ -6,7 +6,8 @@
 class Var_dec : public Base_node
 {
 public:
-  Var_dec(Var_ref *name, Ret_type var_type, Object_type obj_type) : m_var(name), m_var_type(var_type), m_obj_type(obj_type) {}
+  Var_dec(Var_ref *name, Ret_type var_type, Object_type obj_type)
+      : m_var(name), m_var_type(var_type), m_obj_type(obj_type) {}
 
   void accept(Abstract_visitor &visitor) override
   {
@@ -22,7 +23,7 @@ public:
 
   /* holds var name*/
   Var_ref *m_var;
-  
+
   /* Variable type that user declares (int, char) */
   Ret_type m_var_type;
 
