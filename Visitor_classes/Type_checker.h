@@ -37,7 +37,7 @@ private:
   Ret_type m_ret_type;
 
   /* holds the status of the parser (true if parser sucess or if no parse has been run, false if failure) */
-  bool m_parse_flag;
+  bool m_parse_flag = true;
 
   /* holds variable declerations */
   Program_symbol_table &m_prog_sym_table;

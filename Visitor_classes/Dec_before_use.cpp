@@ -48,8 +48,6 @@ void Dec_before_use::dispatch(Array_access &node)
 */
 void Dec_before_use::dispatch(Array_dec &node)
 {
-    Var_storage storage_type = m_global_var_flag ? Var_storage::GLOBAL : Var_storage::LOCAL;
-
     if (m_global_var_flag)
     {
         if (!m_prog_sym_table.add_global_var(node.get_name(), &node))
@@ -195,8 +193,6 @@ void Dec_before_use::dispatch(Unop_dec &node)
 */
 void Dec_before_use::dispatch(Var_dec &node)
 {
-
-    Var_storage storage_type = m_global_var_flag ? Var_storage::GLOBAL : Var_storage::LOCAL;
 
     if (m_global_var_flag)
     {

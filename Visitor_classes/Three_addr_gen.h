@@ -8,6 +8,7 @@
 #include <string>
 #include <optional>
 #include <fstream>
+#include <set>
 
 // Local includes
 #include "../Supporting_classes/Program_symbol_table.h"
@@ -41,7 +42,7 @@ enum class Three_addr_OP
   UNCOND_J,
   EQUAL_J,
   NEQUAL_J,
-  LABEL // LABEL indicates that the instruction is simply the destination of a jump instruction
+  LABEL,                 //indicates that the instruction is simply the destination of a jump instruction
 };
 
 /*  Returns the string representation of a given three op code */
@@ -57,7 +58,7 @@ class Three_addr_gen : public Abstract_visitor
 {
 public:
   Three_addr_gen(std::ofstream& debug_log, Program_symbol_table &sym_table,
-                 std::vector<three_addr_code_entry> &IR_code);
+                 std::vector<std::vector<three_addr_code_entry>> &IR_code);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -110,16 +111,13 @@ private:
   Program_symbol_table &m_sym_table;
 
   /*  stores the intermediate representation of the program */
-  std::vector<three_addr_code_entry> &m_intermediate_rep;
+  std::vector<std::vector<three_addr_code_entry>> &m_intermediate_rep;
+
+  /*  contains all function names in the input file */ 
+  std::set<std::string> m_func_names;
 
   /*  file that contains output of print_IR_code() */
   std::ofstream& m_debug_log;
-
-  /*  
-      indicates if this is the top level stmt dec, for generating IR_code that should only be printed once 
-      at the start
-  */ 
-  bool m_top_level_stmt_dec = true;
 
   /*  indicates if the immediate left or right child of a Binop node is an array */
   bool m_child_is_array_dec = false;

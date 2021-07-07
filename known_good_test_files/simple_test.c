@@ -1,3 +1,7 @@
+int f(void) {
+	return 1;
+}
+
 int main(void)
 {
 	int a[10];

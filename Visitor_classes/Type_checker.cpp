@@ -19,7 +19,7 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-Type_checker::Type_checker(Program_symbol_table &sym_table) : m_prog_sym_table(sym_table), m_parse_flag(true) {}
+Type_checker::Type_checker(Program_symbol_table &sym_table) : m_prog_sym_table(sym_table) {}
 
 bool Type_checker::parse_status() { return m_parse_flag; }
 

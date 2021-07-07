@@ -47,8 +47,9 @@ std::string x86_Register_to_string(x86_Register reg)
 }
 
 Reg_allocator::Reg_allocator(std::string asm_file_name, std::ofstream &debug_log,
-                             Program_symbol_table &sym_table, std::vector<three_addr_code_entry> &three_addr_code)
-    : m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code), m_debug_log(debug_log)
+                             Program_symbol_table &sym_table,
+                             std::vector<std::vector<three_addr_code_entry>> &three_addr_code)
+    : m_debug_log(debug_log), m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code)
 {
   m_asm_file.open(asm_file_name, std::ofstream::trunc);
 
@@ -78,15 +79,18 @@ void Reg_allocator::generate_asm_file()
 {
   m_debug_log << "\nStart of debug log for assembly\n"
               << std::endl;
-
-  generate_CFG();
-  generate_live_out_overall();
-  print_CFG();
-  for (auto &CFG_node : m_cfg_graph)
+  for (std::vector<three_addr_code_entry> &cur_IR_code : m_three_addr_code)
   {
-    if (!CFG_node.second)
+    reset_cfg_data_members();
+    generate_CFG(cur_IR_code);
+    generate_live_out_overall(cur_IR_code);
+    print_CFG();
+    for (auto &CFG_node : m_cfg_graph)
     {
-      generate_assembly_from_CFG_node(CFG_node.first);
+      if (!CFG_node.second)
+      {
+        generate_assembly_from_CFG_node(CFG_node.first, cur_IR_code);
+      }
     }
   }
   m_asm_file << std::endl;
@@ -158,16 +162,16 @@ void Reg_allocator::print_CFG()
 /*  
   Assumes all operations are of the form "x <- y op z", where y and z are optional
 */
-void Reg_allocator::generate_varkill_uevar()
+void Reg_allocator::generate_varkill_uevar(std::vector<three_addr_code_entry> &IR_code)
 {
   for (CFG_entry &cur_entry : m_cfg_graph)
   {
     CFG_node &node = cur_entry.first;
     for (int i = node.m_start_index; i <= node.m_end_index; i++)
     {
-      Three_addr_var x = std::get<0>(m_three_addr_code[i]);
-      Three_addr_var y = std::get<2>(m_three_addr_code[i]);
-      Three_addr_var z = std::get<3>(m_three_addr_code[i]);
+      Three_addr_var x = std::get<0>(IR_code[i]);
+      Three_addr_var y = std::get<2>(IR_code[i]);
+      Three_addr_var z = std::get<3>(IR_code[i]);
 
       /*  If a variable is defined in a basic block then it's added to the varkill set */
       if (x.is_valid() && !x.is_raw_str() && !x.is_label())
@@ -217,6 +221,12 @@ std::optional<int> &Reg_allocator::reg_entry_dist(register_entry &reg_entry)
   return std::get<2>(reg_entry);
 }
 
+void Reg_allocator::reset_cfg_data_members()
+{
+  m_start_index_to_graph_index.clear();
+  m_cfg_graph.clear();
+}
+
 /*  
   Iteratres through m_three_addr_code and adds any basic blocks found to m_cfg_graph
 
@@ -231,25 +241,25 @@ std::optional<int> &Reg_allocator::reg_entry_dist(register_entry &reg_entry)
       unconditional jumps have 1 child (the jump target) 
       conditional jumps have 2 targets (the jump target and the fall through target)
 */
-void Reg_allocator::generate_CFG()
+void Reg_allocator::generate_CFG(std::vector<three_addr_code_entry> &IR_code)
 {
 
   std::unordered_map<std::string, int> label_to_index_map;
 
   /*  add all label names and corresponding indicies to the table */
-  for (int i = 0; i < m_three_addr_code.size(); i++)
+  for (int i = 0; i < IR_code.size(); i++)
   {
-    if (std::get<1>(m_three_addr_code.at(i)) == Three_addr_OP::LABEL)
+    if (std::get<1>(IR_code.at(i)) == Three_addr_OP::LABEL)
     {
-      label_to_index_map.insert({std::get<2>(m_three_addr_code.at(i)).to_string(), i});
+      label_to_index_map.insert({std::get<2>(IR_code.at(i)).to_string(), i});
     }
   }
 
-  /*  create basic blocks out of m_three_addr_code */
+  /*  create basic blocks out of IR_code */
   int start_of_current_block;
-  for (int cur_index = 0; cur_index < m_three_addr_code.size(); cur_index++)
+  for (int cur_index = 0; cur_index < IR_code.size(); cur_index++)
   {
-    Three_addr_OP cur_inst = std::get<1>(m_three_addr_code.at(cur_index));
+    Three_addr_OP cur_inst = std::get<1>(IR_code.at(cur_index));
 
     /*  
         End at:
@@ -260,7 +270,7 @@ void Reg_allocator::generate_CFG()
     */
     if (cur_inst == Three_addr_OP::UNCOND_J)
     {
-      int jmp_target = label_to_index_map.at(std::get<2>(m_three_addr_code.at(cur_index)).to_string());
+      int jmp_target = label_to_index_map.at(std::get<2>(IR_code.at(cur_index)).to_string());
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, jmp_target), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
       start_of_current_block = cur_index + 1;
@@ -268,24 +278,24 @@ void Reg_allocator::generate_CFG()
     else if (cur_inst == Three_addr_OP::EQUAL_J || cur_inst == Three_addr_OP::NEQUAL_J)
     {
       int fall_through_target = cur_index + 1;
-      int jmp_target = label_to_index_map.at(std::get<2>(m_three_addr_code.at(cur_index)).to_string());
+      int jmp_target = label_to_index_map.at(std::get<2>(IR_code.at(cur_index)).to_string());
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, jmp_target, fall_through_target), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
       start_of_current_block = cur_index + 1;
     }
-    else if (std::get<1>(m_three_addr_code.at(cur_index)) == Three_addr_OP::RET)
+    else if (std::get<1>(IR_code.at(cur_index)) == Three_addr_OP::RET)
     {
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
       start_of_current_block = cur_index + 1;
     }
-    else if (cur_index != m_three_addr_code.size() - 1 &&
-             std::get<1>(m_three_addr_code.at(cur_index + 1)) == Three_addr_OP::LABEL)
+    else if (cur_index != IR_code.size() - 1 &&
+             std::get<1>(IR_code.at(cur_index + 1)) == Three_addr_OP::LABEL)
     {
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index, cur_index + 1), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
     }
-    else if (cur_index == m_three_addr_code.size() - 1)
+    else if (cur_index == IR_code.size() - 1)
     {
       m_cfg_graph.push_back({CFG_node(start_of_current_block, cur_index), false});
       m_start_index_to_graph_index.insert({start_of_current_block, m_cfg_graph.size() - 1});
@@ -302,9 +312,9 @@ void Reg_allocator::generate_CFG()
 }
 
 /*  Calculates the live out set for each cfg node in m_cfg_graph. */
-void Reg_allocator::generate_live_out_overall()
+void Reg_allocator::generate_live_out_overall(std::vector<three_addr_code_entry> &IR_code)
 {
-  generate_varkill_uevar();
+  generate_varkill_uevar(IR_code);
 
   bool live_out_changed = true;
 
@@ -449,6 +459,7 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     asm_vec.push_back("jne " + jmp_target);
     write_to_file(m_asm_file, asm_vec);
     break;
+  /*  Treat func names the same as labels */
   case Three_addr_OP::LABEL:
     asm_vec.push_back(jmp_target + ":");
     write_to_file(m_asm_file, asm_vec, "");
@@ -507,14 +518,15 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
   }
 }
 
-void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node)
+void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
+                                                    std::vector<three_addr_code_entry> &IR_code)
 {
   for (int i = node.m_start_index; i <= node.m_end_index; i++)
   {
-    Three_addr_var var_result = std::get<0>(m_three_addr_code[i]);
-    Three_addr_OP cur_op = std::get<1>(m_three_addr_code[i]);
-    Three_addr_var var_1 = std::get<2>(m_three_addr_code[i]);
-    Three_addr_var var_2 = std::get<3>(m_three_addr_code[i]);
+    Three_addr_var var_result = std::get<0>(IR_code.at(i));
+    Three_addr_OP cur_op = std::get<1>(IR_code.at(i));
+    Three_addr_var var_1 = std::get<2>(IR_code.at(i));
+    Three_addr_var var_2 = std::get<3>(IR_code.at(i));
 
     std::optional<x86_Register> reg_1;
     std::optional<x86_Register> reg_2;
@@ -756,7 +768,7 @@ std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_va
   for (int cur_index = start_index; cur_index <= node.m_end_index; cur_index++)
   {
 
-    three_addr_code_entry &cur_entry = m_three_addr_code.at(cur_index);
+    three_addr_code_entry &cur_entry = m_three_addr_code.back().at(cur_index);
 
     if (std::get<0>(cur_entry) == search_var)
     {

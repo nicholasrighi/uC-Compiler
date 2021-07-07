@@ -60,7 +60,7 @@ public:
   /*  Creates a reg allocator that generates an assembly file with the specified
    * name */
   Reg_allocator(std::string asm_file_name, std::ofstream &debug_log, Program_symbol_table &sym_table,
-                std::vector<three_addr_code_entry> &three_addr_code);
+                std::vector<std::vector<three_addr_code_entry>> &three_addr_code);
 
   ~Reg_allocator();
 
@@ -90,16 +90,20 @@ private:
   std::optional<int> &reg_entry_dist(register_entry &);
 
   /*
-      Determines which variables should be added to the var_kill set and which
-     variables should be added to the UEVar set for each node in the CFG
+     Determines which variables should be added to the var_kill set and which
+     variables should be added to the UEVar set for each node in the CFG corresponding to the 
+     three_addr_code entry
   */
-  void generate_varkill_uevar();
+  void generate_varkill_uevar(std::vector<three_addr_code_entry>&);
 
-  /*  Generates a control flow graph for m_three_addr_code */
-  void generate_CFG();
+  /*  Empties the CFG data members */
+  void reset_cfg_data_members();
 
-  /*  Generates a live out set for each basic block in the CFG */
-  void generate_live_out_overall();
+  /*  Generates a control flow graph for m_three_addr_code from the passed vector */
+  void generate_CFG(std::vector<three_addr_code_entry>&);
+
+  /*  Generates a live out set for each basic block in the CFG based on the specified three_addr_code_entry*/
+  void generate_live_out_overall(std::vector<three_addr_code_entry>&);
 
   /*  
       Generates the liveout set for the specified CFG_node based on all sucessors of the specified node 
@@ -109,7 +113,7 @@ private:
 
   /*  Generates assembly based on the CFG node and the LiveOut set of each basic
    * block */
-  void generate_assembly_from_CFG_node(const CFG_node &node);
+  void generate_assembly_from_CFG_node(const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
 
   /*
       Saves all variables in node's live out set that reside in registers to memory
@@ -178,7 +182,7 @@ private:
   Program_symbol_table &m_prog_sym_table;
 
   /*  Vector of three address codes that will be translated into assembly */
-  std::vector<three_addr_code_entry> &m_three_addr_code;
+  std::vector<std::vector<three_addr_code_entry>> &m_three_addr_code;
 
   /*  Vector of basic blocks. Each block will have assembly generated for it */
   std::vector<CFG_entry> m_cfg_graph;

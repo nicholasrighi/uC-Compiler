@@ -3,8 +3,8 @@ PARSER_FILE=parser
 EXE_NAME=compiler
 BISON_FLAGS= --debug -d
 CC=g++
-C_FLAGS=-Wno-write-strings -std=c++17 -g 
-SAN_FLAGS=-ggdb -fsanitize=undefined -fno-omit-frame-pointer -static-libstdc++ -static-libasan -lrt
+C_FLAGS=-Wall -Wno-sign-compare -Wno-write-strings -std=c++17 -g 
+SAN_FLAGS=-ggdb -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -static-libstdc++ -static-libasan -lrt
 
 .PHONY:test
 
@@ -24,3 +24,4 @@ test:
 
 clean:
 	-rm *.tab* $(EXE_NAME) *.yy.c* *.output* test *.s debug_log.txt
+
