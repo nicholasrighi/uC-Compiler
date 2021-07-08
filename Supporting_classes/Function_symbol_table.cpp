@@ -13,22 +13,31 @@ Function_symbol_table::Function_symbol_table()
 bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_storage var_storage)
 {
   sym_table_entry sym_entry(var_dec, var_storage, m_local_var_offset);
+  if (m_chained_sym_table.at(m_table_level).count(name) >= 1)
   {
-    if (m_chained_sym_table.at(m_table_level).count(name) >= 1)
-    {
-      return false;
-    }
-    m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
-    if (var_dec != nullptr && var_dec->m_obj_type == Object_type::ARRAY)
-    {
-      m_local_var_offset += ((dynamic_cast<Array_dec *>(var_dec))->m_array_size) * 8;
-    }
-    else
-    {
-      m_local_var_offset += 8;
-    }
-    return true;
+    return false;
   }
+  m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
+  if (var_dec != nullptr && var_dec->m_obj_type == Object_type::ARRAY)
+  {
+    m_local_var_offset -= ((dynamic_cast<Array_dec *>(var_dec))->m_array_size) * 8;
+  }
+  else
+  {
+    m_local_var_offset -= 8;
+  }
+  return true;
+}
+
+bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_storage var_storage, int offset)
+{
+  sym_table_entry sym_entry(var_dec, var_storage, offset);
+  if (m_chained_sym_table.at(m_table_level).count(name) >= 1)
+  {
+    return false;
+  }
+  m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
+  return true;
 }
 
 std::optional<Var_dec *> Function_symbol_table::get_var_dec(std::string name)

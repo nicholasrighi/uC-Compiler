@@ -31,6 +31,14 @@ public:
    bool add_var(std::string name, Var_dec* var_dec, Var_storage var_storage);
 
    /* 
+     Adds a variable of the specified type to the most nested symbol table with the specified offset. 
+     Returns false if the variable was already defined. Returns true otherwise. Does not change the 
+     m_local_var_offset, so the offset specified should be negative (ie. above %rsp) in order to not
+     effect future calls to add_var().
+   */
+   bool add_var(std::string name, Var_dec* var_dec, Var_storage var_storage, int offset);
+
+   /* 
      Returns an optional containing the variable decleration of the specified variable. If the
      variable isn't defined, then the returned optional is false 
    */

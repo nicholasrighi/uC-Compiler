@@ -66,6 +66,16 @@ bool Program_symbol_table::add_local_var(std::string name, Var_dec *var_dec)
   return m_cur_func_iter->second.add_var(name, var_dec, Var_storage::LOCAL);
 }
 
+bool Program_symbol_table::add_register_var(std::string name, Var_dec *var_dec)
+{
+  if (m_cur_func_iter == m_function_sym_table.end())
+  {
+    return false;
+  }
+
+  return m_cur_func_iter->second.add_var(name, var_dec, Var_storage::REGISTER);
+}
+
 void Program_symbol_table::set_search_func(std::string func_name)
 {
   m_cur_func_iter = m_function_sym_table.find(func_name);

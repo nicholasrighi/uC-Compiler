@@ -151,6 +151,16 @@ private:
   void free(x86_Register reg_to_free, const CFG_node& node);
 
   /*
+    Stores the value allocated in var_to_free to the offset specified in the symbol table. If the variable
+    contained in var_to_free isn't in the symbol table, store_reg() adds the variable to the symbol table and 
+    stores the variable at the new offset
+  */
+  void store_reg(x86_Register reg_to_free);
+
+  /*  Emits assembly to load the value stored in var_to_be_allocated into free_reg */
+  void load_reg(const Three_addr_var& var_to_be_allocated, x86_Register free_reg);
+
+  /*
       If the specified variable is contained in a register returns that register. Otherwise returns
       an empty optional
   */

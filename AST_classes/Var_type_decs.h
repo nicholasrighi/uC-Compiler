@@ -14,9 +14,7 @@ enum class Ret_type
   VOID
 };
 
-/* 
-  Ref_type specifies the type of reference that is being used 
-*/
+/* Ref_type specifies the type of reference that is being used */
 enum class Object_type
 {
   SCALAR,
@@ -25,15 +23,12 @@ enum class Object_type
   ERROR
 };
 
-/*
-  Where the variable will be located in memory
-*/
+/*  Where the variable will be located in memory */
 enum class Var_storage{
   LOCAL,
-  GLOBAL
+  GLOBAL,
+  REGISTER
 };
 
-/*
-  Returns a string representation of the specified Ret_type
-*/
+/*  Returns a string representation of the specified Ret_type */
 std::string type_to_string(Ret_type type);

@@ -608,16 +608,13 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
 
 void Reg_allocator::save_live_out_vars(const CFG_node &node)
 {
-
   for (const std::string &cur_live_out : node.m_live_out)
   {
     for (register_entry &cur_reg_entry : m_allocated_reg_data)
     {
       if (reg_entry_var(cur_reg_entry).is_string() && reg_entry_var(cur_reg_entry).to_string() == cur_live_out)
       {
-        std::string source_reg_str = x86_Register_to_string(reg_entry_reg(cur_reg_entry));
-        std::string var_offset_str = std::to_string(get_var_offset_cond_add(reg_entry_var(cur_reg_entry).to_string()));
-        m_asm_file << "\tmov " << source_reg_str << ", -" << var_offset_str << "(%rbp)" << std::endl;
+        store_reg(reg_entry_reg(cur_reg_entry));
         free(reg_entry_reg(cur_reg_entry), node);
       }
     }
@@ -642,27 +639,34 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
   /*  Allocate register if the value we need isn't contained inside a register */
   x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node);
 
+  /*  Loads value from var_to_be_allocated into newly_freed_register */ 
+  load_reg(var_to_be_allocated, newly_freed_register);
+
+  return newly_freed_register;
+}
+
+void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Register free_reg)
+{
+
   /*  Load variable into register */
   if (var_to_be_allocated.is_string())
   {
-    std::string source_reg_str = x86_Register_to_string(newly_freed_register);
+    std::string source_reg_str = x86_Register_to_string(free_reg);
     std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
-    m_asm_file << "\tmov -" << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
+    m_asm_file << "\tmov " << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
     m_debug_log << "loading variable from offset " << var_offset_str << " into register " << source_reg_str << std::endl;
   }
   else if (var_to_be_allocated.is_array())
   {
     std::string var_offset_str =
         std::to_string(m_prog_sym_table.get_var_offset(var_to_be_allocated.to_string()).value());
-    m_asm_file << "\tmov $-" << var_offset_str << ", " << x86_Register_to_string(newly_freed_register) << std::endl;
+    m_asm_file << "\tmov $" << var_offset_str << ", " << x86_Register_to_string(free_reg) << std::endl;
   }
   else
   {
-    m_asm_file << "\tmov $" << var_to_be_allocated.to_string() << ", "
-               << x86_Register_to_string(newly_freed_register) << std::endl;
+    m_asm_file << "\tmov $" << var_to_be_allocated.to_string() << ", " << x86_Register_to_string(free_reg)
+               << std::endl;
   }
-
-  return newly_freed_register;
 }
 
 x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocated,
@@ -704,14 +708,11 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
     /*  Only write to memory if register has a temporary variable that is used later in this block */
     if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node))
     {
-      std::string source_reg_str = x86_Register_to_string(reg_entry_reg(reg_entry_being_freed));
-      std::string var_offset_str = std::to_string(get_var_offset_cond_add(reg_entry_var(reg_entry_being_freed).to_string()));
-      m_asm_file << "\tmov " << source_reg_str << ", -" << var_offset_str << "(%rbp)" << std::endl;
-      m_debug_log << "storing variable " << reg_entry_var(reg_entry_being_freed).to_string() << " with offset " << var_offset_str
-                  << std::endl;
+      store_reg(reg_entry_reg(reg_entry_being_freed));
     }
 
     reg_entry_var(m_allocated_reg_data.at(next_furthest_use_index)) = var_to_be_allocated;
+
     /*  
         Set distance to next instruction to nullopt to ensure that this register 
         isn't deallocated for another variable in the same intruction
@@ -734,20 +735,26 @@ void Reg_allocator::free(x86_Register reg_to_free, const CFG_node &node)
     m_free_reg_stack.push(reg_to_free);
 
     /* Write variable in register to memory if that variable is in the live out set of node */
-    Three_addr_var &var_being_freed = reg_entry_var(m_allocated_reg_data.at(static_cast<int>(reg_to_free)));
+    Three_addr_var &var_being_freed = reg_entry_var(m_allocated_reg_data.at(reg_index));
     if (var_being_freed.is_string() && node.m_live_out.count(var_being_freed.to_string()) != 0)
     {
-      std::string source_reg_str = x86_Register_to_string(reg_to_free);
-      std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_being_freed.to_string()));
-      m_asm_file << "\tmov " << source_reg_str << ", -" << var_offset_str << "(%rbp)" << std::endl;
-      m_debug_log << "storing variable " << var_being_freed.to_string() << " with offset " << var_offset_str
-                  << std::endl;
+      store_reg(reg_to_free);
     }
 
     reg_entry_var(m_allocated_reg_data.at(reg_index)) = Three_addr_var();
     reg_entry_dist(m_allocated_reg_data.at(reg_index)) = std::nullopt;
     m_register_free_status[reg_index] = true;
   }
+}
+
+void Reg_allocator::store_reg(x86_Register reg_to_free)
+{
+  std::string source_reg_str = x86_Register_to_string(reg_to_free);
+  std::string var_name = std::get<0>(m_allocated_reg_data.at(static_cast<int>(reg_to_free))).to_string();
+  std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_name));
+  m_asm_file << "\tmov " << source_reg_str << ", " << var_offset_str << "(%rbp)" << std::endl;
+  m_debug_log << "storing variable " << var_name << " in live out set with offset " << var_offset_str
+              << std::endl;
 }
 
 std::optional<x86_Register> Reg_allocator::find_allocated_var(const Three_addr_var &var_to_be_allocated)
