@@ -387,6 +387,18 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
 
   switch (op)
   {
+  case Three_addr_OP::POP:
+    asm_vec.push_back("pop " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
+    break;
+  case Three_addr_OP::PUSH:
+    asm_vec.push_back("push " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
+    break;
+  case Three_addr_OP::CALL:
+    asm_vec.push_back("call " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
+    break;
   case Three_addr_OP::RAW_STR:
     asm_vec.push_back(jmp_target);
     write_to_file(m_asm_file, asm_vec);
@@ -560,47 +572,26 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
 
     generate_asm_line(reg_result, cur_op, reg_1, reg_2, jmp_target);
 
-    if (reg_1.has_value())
+    auto update_or_free_reg = [this](std::optional<x86_Register> &reg, Three_addr_var &var, const CFG_node &node, int start_index)
     {
-      std::optional<int> next_var_1_use = dist_to_next_var_occurance(var_1, i + 1, node);
-      if (next_var_1_use.has_value())
+      if (reg.has_value())
       {
-        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_1.value())]) = next_var_1_use.value();
+        std::optional<int> next_var_use = dist_to_next_var_occurance(var, start_index + 1, node);
+        if (next_var_use.has_value())
+        {
+          reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg.value())]) = next_var_use.value();
+        }
+        else
+        {
+          free(reg.value(), node);
+        }
       }
-      else
-      {
-        free(reg_1.value(), node);
-      }
-      print_next_var_use(var_1, next_var_1_use);
-    }
+    };
 
-    if (reg_2.has_value())
-    {
-      std::optional<int> next_var_2_use = dist_to_next_var_occurance(var_2, i + 1, node);
-      if (next_var_2_use.has_value())
-      {
-        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_2.value())]) = next_var_2_use.value();
-      }
-      else
-      {
-        free(reg_2.value(), node);
-      }
-      print_next_var_use(var_2, next_var_2_use);
-    }
+    update_or_free_reg(reg_1, var_1, node, i);
+    update_or_free_reg(reg_2, var_2, node, i);
+    update_or_free_reg(reg_result, var_result, node, i);
 
-    if (reg_result.has_value())
-    {
-      std::optional<int> next_var_result_use = dist_to_next_var_occurance(var_result, i + 1, node);
-      if (next_var_result_use.has_value())
-      {
-        reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg_result.value())]) = next_var_result_use.value();
-      }
-      else
-      {
-        free(reg_result.value(), node);
-      }
-      print_next_var_use(var_result, next_var_result_use);
-    }
     print_register_contents();
   }
   save_live_out_vars(node);
@@ -639,7 +630,7 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
   /*  Allocate register if the value we need isn't contained inside a register */
   x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node);
 
-  /*  Loads value from var_to_be_allocated into newly_freed_register */ 
+  /*  Loads value from var_to_be_allocated into newly_freed_register */
   load_reg(var_to_be_allocated, newly_freed_register);
 
   return newly_freed_register;
