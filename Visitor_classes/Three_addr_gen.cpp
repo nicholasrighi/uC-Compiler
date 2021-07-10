@@ -20,6 +20,14 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
+const std::vector<std::string> regs_for_passing_func_args{
+    "%rdi",
+    "%rsi",
+    "%rdx",
+    "%rcx",
+    "%r8",
+    "%r9"};
+
 /* returns the next avaliable temporary variable */
 std::string Three_addr_gen::gen_temp()
 {
@@ -176,7 +184,7 @@ void Three_addr_gen::print_IR_code()
 {
   for (int func_index = 0; func_index < m_intermediate_rep.size(); func_index++)
   {
-    std::vector<three_addr_code_entry>& cur_intermediate_rep = m_intermediate_rep.at(func_index);
+    std::vector<three_addr_code_entry> &cur_intermediate_rep = m_intermediate_rep.at(func_index);
 
     for (int instruc_index = 0; instruc_index < cur_intermediate_rep.size(); instruc_index++)
     {
@@ -426,6 +434,47 @@ void Three_addr_gen::dispatch(Func_dec &node)
 
 void Three_addr_gen::dispatch(Func_ref &node)
 {
+  int reg_arg_num;
+  if (node.m_args != nullptr)
+  {
+    reg_arg_num = node.m_args->m_sub_expressions.size() > 6 ? 6 : node.m_args->m_sub_expressions.size();
+  }
+  else
+  {
+    reg_arg_num = 0;
+  }
+
+  Three_addr_var sub_rsp = Three_addr_var("add $-16, %rsp", Three_addr_var_type::RAW_STR);
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, sub_rsp, Three_addr_var()));
+
+  /*  Push regs onto stack */
+  /*
+  for (int i = 0; i < reg_arg_num; i++)
+  {
+    Three_addr_var push_reg = Three_addr_var(regs_for_passing_func_args.at(i), Three_addr_var_type::RAW_STR);
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::PUSH, push_reg, Three_addr_var()));
+    node.m_args->m_sub_expressions.at(i)->accept(*this);
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::COPY_ARG, push_reg, m_last_entry));
+  }
+  */
+
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CALL, Three_addr_var(node.m_var->m_name, Three_addr_var_type::RAW_STR), Three_addr_var()));
+
+  /*  Pop register off the stack in the opposite order we pushed them on */
+  /*
+  for (int i = reg_arg_num - 1; i >= 0; i--)
+  {
+    Three_addr_var push_reg = Three_addr_var(regs_for_passing_func_args.at(i), Three_addr_var_type::RAW_STR);
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::POP, push_reg, Three_addr_var()));
+  }
+  */
+
+  Three_addr_var add_rsp = Three_addr_var("add $16, %rsp", Three_addr_var_type::RAW_STR);
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, add_rsp, Three_addr_var()));
+
+  Three_addr_var return_tmp(gen_temp());
+  m_intermediate_rep.back().push_back(std::make_tuple(return_tmp, Three_addr_OP::RETURN_VAL, Three_addr_var(), Three_addr_var()));
+  m_last_entry = return_tmp;
 }
 
 void Three_addr_gen::dispatch(If_dec &node)
@@ -487,9 +536,7 @@ void Three_addr_gen::dispatch(Var_dec &node)
 {
 }
 
-/*
-  Assigns m_last_entry to the variable being referenced
-*/
+/*  Assigns m_last_entry to the variable being referenced */
 void Three_addr_gen::dispatch(Var_ref &node)
 {
   m_last_entry = Three_addr_var(node.m_name);
@@ -625,6 +672,26 @@ std::string three_op_to_string(Three_addr_OP op)
   else if (op == Three_addr_OP::NOT_EQUALITY)
   {
     return "NOT EQUAL ";
+  }
+  else if (op == Three_addr_OP::CALL)
+  {
+    return "CALL ";
+  }
+  else if (op == Three_addr_OP::COPY_ARG)
+  {
+    return "COPY ARG ";
+  }
+  else if (op == Three_addr_OP::RETURN_VAL)
+  {
+    return "RETURN VAL ";
+  }
+  else if (op == Three_addr_OP::PUSH)
+  {
+    return "PUSH ";
+  }
+  else if (op == Three_addr_OP::POP)
+  {
+    return "POP ";
   }
   return "Error, invalid op recieved";
 }

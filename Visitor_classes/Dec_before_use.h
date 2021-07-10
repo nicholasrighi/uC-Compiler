@@ -47,6 +47,9 @@ private:
   /*  indicates if variables should be defined as global */
   bool m_global_var_flag = true;
 
+  /*  indicates if variables should be defined as function arguments */
+  bool m_func_args = false;
+
   /*  
       each entry in the list is the symbol table for a seperate function. The first entry in the list is the 
       symbol table for the global variables

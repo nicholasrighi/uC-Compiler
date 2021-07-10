@@ -11,7 +11,7 @@
   }
 
   void Stmt_dec::add_expression_back(Base_node *exp) { m_sub_expressions.push_back(exp); }
-  void Stmt_dec::add_expression_front(Base_node *exp) { m_sub_expressions.push_front(exp); }
+  void Stmt_dec::add_expression_front(Base_node *exp) { m_sub_expressions.insert(m_sub_expressions.begin(), exp); }
 
   void Stmt_dec::accept(Abstract_visitor &visitor) 
   {

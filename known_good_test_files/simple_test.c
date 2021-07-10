@@ -1,18 +1,18 @@
 int f(void) {
-	return 1;
+	return 2;
 }
 
 int main(void)
 {
-	int a[10];
+	int x[10];
 	int i;
 
 	i = 0;
 
 	while (i < 10) {
-		a[i] = i*i;
+		x[i] = i * f();
 		i = i + 1;
 	}
 
-	return a[9];
+	return x[9] * 10;
 }

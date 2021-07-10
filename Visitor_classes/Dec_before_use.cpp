@@ -22,7 +22,6 @@
 
 Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table) : m_prog_sym_table(program_sym_table)
 {
-
 }
 
 bool Dec_before_use::parse_status()
@@ -101,6 +100,8 @@ void Dec_before_use::dispatch(Func_dec &node)
     m_prog_sym_table.add_scope_to_cur_func_sym_table();
 
     /*  add function args to symbol table */
+    m_func_args = true;
+
     if (node.m_args != nullptr)
     {
         for (auto &func_arg : node.m_args->m_sub_expressions)
@@ -108,6 +109,8 @@ void Dec_before_use::dispatch(Func_dec &node)
             func_arg->accept(*this);
         }
     }
+
+    m_func_args = false;
 
     node.m_func_body->accept(*this);
 
@@ -196,7 +199,15 @@ void Dec_before_use::dispatch(Var_dec &node)
 
     if (m_global_var_flag)
     {
-        if (!m_prog_sym_table.add_global_var(node.get_name(), &node)) 
+        if (!m_prog_sym_table.add_global_var(node.get_name(), &node))
+        {
+            std::cout << "Redeclared global variable " << node.get_name() << std::endl;
+            m_parse_flag = false;
+        }
+    }
+    else if (m_func_args)
+    {
+        if (!m_prog_sym_table.add_register_var(node.get_name(), &node))
         {
             std::cout << "Redeclared global variable " << node.get_name() << std::endl;
             m_parse_flag = false;

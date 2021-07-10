@@ -129,6 +129,17 @@ void Reg_allocator::print_register_contents()
   m_debug_log << std::endl;
 }
 
+void Reg_allocator::mark_in_use_regs()
+{
+  for (int i = 0; i < m_allocated_reg_data.size(); i++)
+  {
+    if (!m_register_free_status.at(i))
+    {
+      m_caller_saved_regs.push_back(static_cast<x86_Register>(i));
+    }
+  }
+}
+
 void Reg_allocator::print_CFG()
 {
   for (CFG_entry &cfg_node : m_cfg_graph)
@@ -387,6 +398,14 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
 
   switch (op)
   {
+  case Three_addr_OP::RETURN_VAL:
+    asm_vec.push_back("mov %rax," + x86_Register_to_string(result_reg.value()));
+    write_to_file(m_asm_file, asm_vec);
+    break;
+  case Three_addr_OP::COPY_ARG:
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", " + jmp_target);
+    write_to_file(m_asm_file, asm_vec);
+    break;
   case Three_addr_OP::POP:
     asm_vec.push_back("pop " + jmp_target);
     write_to_file(m_asm_file, asm_vec);
@@ -396,7 +415,19 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Th
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::CALL:
+    mark_in_use_regs();
+    for (x86_Register cur_reg : m_caller_saved_regs)
+    {
+      asm_vec.push_back("push " + x86_Register_to_string(cur_reg));
+    }
+    asm_vec.push_back("push %rbp");
     asm_vec.push_back("call " + jmp_target);
+    asm_vec.push_back("pop %rbp");
+    for (auto rev_it = m_caller_saved_regs.rbegin(); rev_it != m_caller_saved_regs.rend(); rev_it++)
+    {
+      asm_vec.push_back("pop " + x86_Register_to_string(*rev_it));
+    }
+    m_caller_saved_regs.clear();
     write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::RAW_STR:
@@ -548,13 +579,13 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
 
     if (var_1.is_valid())
     {
-      reg_1 = ensure(var_1, i + 1, node);
+      reg_1 = ensure(var_1, i + 1, node, IR_code);
       jmp_target = var_1.to_string();
     }
 
     if (var_2.is_valid())
     {
-      reg_2 = ensure(var_2, i + 1, node);
+      reg_2 = ensure(var_2, i + 1, node, IR_code);
     }
 
     if (var_result.is_valid())
@@ -566,17 +597,22 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
       }
       else
       {
-        reg_result = allocate_reg(var_result, i + 1, node);
+        reg_result = allocate_reg(var_result, i + 1, node, IR_code);
       }
     }
 
     generate_asm_line(reg_result, cur_op, reg_1, reg_2, jmp_target);
 
-    auto update_or_free_reg = [this](std::optional<x86_Register> &reg, Three_addr_var &var, const CFG_node &node, int start_index)
+    /*  
+        Frees the register if it holds a variable that isn't being used again in the future. Otherwise sets the next use of the 
+        variable to the index at which it occurs next 
+    */
+    auto update_or_free_reg = [this](std::optional<x86_Register> &reg, Three_addr_var &var,
+                                     const CFG_node &node, int start_index, std::vector<three_addr_code_entry> &IR_code)
     {
       if (reg.has_value())
       {
-        std::optional<int> next_var_use = dist_to_next_var_occurance(var, start_index + 1, node);
+        std::optional<int> next_var_use = dist_to_next_var_occurance(var, start_index + 1, node, IR_code);
         if (next_var_use.has_value())
         {
           reg_entry_dist(m_allocated_reg_data[static_cast<int>(reg.value())]) = next_var_use.value();
@@ -588,9 +624,9 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
       }
     };
 
-    update_or_free_reg(reg_1, var_1, node, i);
-    update_or_free_reg(reg_2, var_2, node, i);
-    update_or_free_reg(reg_result, var_result, node, i);
+    update_or_free_reg(reg_1, var_1, node, i, IR_code);
+    update_or_free_reg(reg_2, var_2, node, i, IR_code);
+    update_or_free_reg(reg_result, var_result, node, i, IR_code);
 
     print_register_contents();
   }
@@ -612,7 +648,9 @@ void Reg_allocator::save_live_out_vars(const CFG_node &node)
   }
 }
 
-std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated, int start_index, const CFG_node &node)
+std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated,
+                                                  int start_index, const CFG_node &node,
+                                                  std::vector<three_addr_code_entry> &IR_code)
 {
   /* If the var_to_be_allocated doesn't need a register, return an emtpy optional */
   if (var_to_be_allocated.is_raw_str() || var_to_be_allocated.is_label())
@@ -628,7 +666,7 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
   }
 
   /*  Allocate register if the value we need isn't contained inside a register */
-  x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node);
+  x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node, IR_code);
 
   /*  Loads value from var_to_be_allocated into newly_freed_register */
   load_reg(var_to_be_allocated, newly_freed_register);
@@ -661,7 +699,9 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
 }
 
 x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocated,
-                                         int start_index, const CFG_node &node)
+                                         int start_index,
+                                         const CFG_node &node,
+                                         std::vector<three_addr_code_entry> &IR_code)
 {
   if (m_free_reg_stack.size() > 0)
   {
@@ -697,7 +737,7 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
     register_entry &reg_entry_being_freed = m_allocated_reg_data.at(next_furthest_use_index);
 
     /*  Only write to memory if register has a temporary variable that is used later in this block */
-    if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node))
+    if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node, IR_code))
     {
       store_reg(reg_entry_reg(reg_entry_being_freed));
     }
@@ -761,12 +801,14 @@ std::optional<x86_Register> Reg_allocator::find_allocated_var(const Three_addr_v
 }
 
 std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_var &search_var,
-                                                             int start_index, const CFG_node &node)
+                                                             int start_index,
+                                                             const CFG_node &node,
+                                                             std::vector<three_addr_code_entry> &IR_code)
 {
   for (int cur_index = start_index; cur_index <= node.m_end_index; cur_index++)
   {
 
-    three_addr_code_entry &cur_entry = m_three_addr_code.back().at(cur_index);
+    three_addr_code_entry &cur_entry = IR_code.at(cur_index);
 
     if (std::get<0>(cur_entry) == search_var)
     {

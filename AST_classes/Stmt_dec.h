@@ -4,7 +4,7 @@
 #include "Base_node.h"
 
 // System includes
-#include <list>
+#include <vector>
 
 class Stmt_dec : public Base_node
 {
@@ -28,7 +28,7 @@ public:
   void prepend_stmt_list(Stmt_dec *other);
 
   /*  The subexpressions this stmt_node contains */
-  std::list<Base_node *> m_sub_expressions;
+  std::vector<Base_node *> m_sub_expressions;
 
   /*  Indicates if the stmt_node is part of a new scope */
   bool m_new_scope;

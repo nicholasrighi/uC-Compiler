@@ -11,7 +11,7 @@
 #include "../AST_classes/Var_type_decs.h"
 
 /* 
-   Symbol table entry is 
+   symbol_table_entry is 
       Var_dec* =    pointer to var_dec node
       Var_storage = determines if variable is global or local storage
       int =         variable's offset from the base pointer of the current stack frame.
@@ -29,14 +29,6 @@ public:
      the variable was already defined. Returns true otherwise 
    */
    bool add_var(std::string name, Var_dec* var_dec, Var_storage var_storage);
-
-   /* 
-     Adds a variable of the specified type to the most nested symbol table with the specified offset. 
-     Returns false if the variable was already defined. Returns true otherwise. Does not change the 
-     m_local_var_offset, so the offset specified should be negative (ie. above %rsp) in order to not
-     effect future calls to add_var().
-   */
-   bool add_var(std::string name, Var_dec* var_dec, Var_storage var_storage, int offset);
 
    /* 
      Returns an optional containing the variable decleration of the specified variable. If the
@@ -67,10 +59,10 @@ public:
    */
    bool increment_scope();
 
-   /*
-      Moves m_table_level back to the least nested scope of the symbol table
-   */
+   /* Moves m_table_level back to the least nested scope of the symbol table */
    void reset_scope();
+
+   std::vector<std::string> get_func_arg_names(); 
 
 private:
    /*
@@ -78,6 +70,14 @@ private:
       the list is the least nested scope, back of the list is the most nested scope
    */
    std::vector<std::unordered_map<std::string, sym_table_entry>> m_chained_sym_table;
+
+   std::unordered_map<std::string, sym_table_entry> m_func_arg_table;
+
+   /* 
+     Adds a variable of the specified type to the most nested symbol table. Returns false if
+     the variable was already defined. Returns true otherwise 
+   */
+   bool add_func_arg(std::string name, Var_dec *var_dec);
 
    /*
       Index into the symbol table representing the most nested scope being evaluated. 
@@ -91,4 +91,6 @@ private:
       This value isn't used if the function_symbol_table is holding global variables
    */
    int m_local_var_offset = 0;
+
+   int m_func_args_offset = 0;
 };

@@ -71,6 +71,10 @@ public:
   void generate_asm_file();
 
 private:
+
+  /*  adds regsiters currently in use to m_caller_saved_regs */
+  void mark_in_use_regs();
+
   /*  Print the CFG nodes to the file */
   void print_CFG();
 
@@ -133,7 +137,7 @@ private:
     ensure allocates nothing and returns an empty optional
   */
   std::optional<x86_Register> ensure(const Three_addr_var &var_to_be_alloced, int start_index,
-                                     const CFG_node &node);
+                                     const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
 
   /*
      Finds and returns the x86_Register that will be used the furthest in the
@@ -142,7 +146,7 @@ private:
      m_allocated_reg_data
   */
   x86_Register allocate_reg(const Three_addr_var &var_to_be_allocated,
-                            int start_index, const CFG_node &node);
+                            int start_index, const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
 
   /*
       Frees the specified register by setting it to free in m_register_free_status and 
@@ -171,7 +175,7 @@ private:
     used after start_index, returns an empty optional
   */
   std::optional<int> dist_to_next_var_occurance(
-      const Three_addr_var &search_var, int start_index, const CFG_node &node);
+      const Three_addr_var &search_var, int start_index, const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
 
   /*
     Returns the specified variable's offset in the symbol table. If the variable
@@ -220,4 +224,7 @@ private:
 
   /*  Holds free x86 registers */
   std::stack<x86_Register> m_free_reg_stack;
+  
+  /*  Holds registers saved before a function call */
+  std::vector<x86_Register> m_caller_saved_regs;
 };

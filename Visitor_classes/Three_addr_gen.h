@@ -17,9 +17,14 @@
 enum class Three_addr_OP
 {
   RAW_STR, 
+  CALL,
+  PUSH,
+  POP,
   MOVE,
   CMP,
   LOAD,
+  COPY_ARG,
+  RETURN_VAL,
   ASSIGN,
   EQUALITY,
   NOT_EQUALITY,
@@ -85,6 +90,9 @@ private:
 
   /*  Removes labels that aren't the targets of any jmp instructions from m_intermediate_rep */ 
   void remove_unused_labels();
+
+  /*  Adds an instruction to m_intermediate_rep to move func_arg into the specified registerr */
+  void add_func_args(Var_dec* func_arg, std::string reg);
 
   /*  
       Replaces adjacent labels with a single label. Replaces all references to deleted labels with references

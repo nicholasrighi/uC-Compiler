@@ -119,7 +119,7 @@ int main(int argc, char **argv)
     root->accept(print_visitor);
   }
 
-  /*  Need to call dec_visitor before printing symbol table to ensure symbol table is populated */
+  /*  Need to cll dec_visitor before printing symbol table to ensure symbol table is populated */
   root->accept(dec_visitor);
 
   if (print_sym_table)
