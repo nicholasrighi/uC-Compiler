@@ -1,5 +1,9 @@
+int z;
+
 int f(void) {
-	return 2;
+	int y[3];
+	y[2] = 10;
+	return y[2];
 }
 
 int main(void)
@@ -14,5 +18,5 @@ int main(void)
 		i = i + 1;
 	}
 
-	return x[9] * 10;
+	return x[4] * 5;
 }

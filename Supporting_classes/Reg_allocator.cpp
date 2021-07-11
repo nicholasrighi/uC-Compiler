@@ -81,6 +81,8 @@ void Reg_allocator::generate_asm_file()
               << std::endl;
   for (std::vector<three_addr_code_entry> &cur_IR_code : m_three_addr_code)
   {
+    /*  The first entry in each function is a label containing the function name */
+    m_prog_sym_table.set_search_func(std::get<2>(cur_IR_code.front()).to_string());
     reset_cfg_data_members();
     generate_CFG(cur_IR_code);
     generate_live_out_overall(cur_IR_code);
@@ -381,8 +383,11 @@ bool Reg_allocator::generate_live_out_from_node(CFG_node &node)
   return node.m_live_out.size() != prev_live_out_size;
 }
 
-void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg, Three_addr_OP op,
-                                      std::optional<x86_Register> reg_1, std::optional<x86_Register> reg_2,
+
+void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
+                                      Three_addr_OP op,
+                                      std::optional<x86_Register> reg_1,
+                                      std::optional<x86_Register> reg_2,
                                       std::string jmp_target)
 {
 

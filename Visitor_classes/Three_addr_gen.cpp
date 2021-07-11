@@ -282,6 +282,7 @@ void Three_addr_gen::dispatch(Binop_dec &node)
 {
   node.m_right->accept(*this);
   Three_addr_var right_temp = m_last_entry;
+  m_child_is_array_dec = false;
 
   /*  
       Need to visit left side second to ensure that the '=' operator functions correctly when the left side is 
