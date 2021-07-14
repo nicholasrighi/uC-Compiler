@@ -22,6 +22,7 @@ bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_stor
   if (var_storage == Var_storage::REGISTER)
   {
     m_func_arg_table.insert({name, sym_entry});
+    m_func_arg_vec.insert(m_func_arg_vec.begin(), name);
   }
   else
   {
@@ -79,6 +80,10 @@ std::optional<int> Function_symbol_table::get_var_offset(std::string name)
   return std::nullopt;
 }
 
+int Function_symbol_table::get_rsp_offset() {
+  return m_local_var_offset + 8;
+}
+
 void Function_symbol_table::print_sym_table()
 {
   for (auto &tables : m_chained_sym_table)
@@ -110,10 +115,5 @@ void Function_symbol_table::reset_scope()
 
 std::vector<std::string> Function_symbol_table::get_func_arg_names()
 {
-  std::vector<std::string> func_names;
-  for (auto &func_arg : m_func_arg_table)
-  {
-    func_names.push_back(func_arg.first);
-  }
-  return func_names;
+  return m_func_arg_vec;
 }

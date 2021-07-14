@@ -16,7 +16,7 @@ public:
       symbol table doesn't contain the search target, checks the global symbol table for the 
       search target. Returns a pointer to Var_dec associated with that name if that variable is 
       found, otherwise returns nullopt 
-    */
+  */
   std::optional<Var_dec *> get_var_dec(std::string var_name);
 
   /*
@@ -25,6 +25,12 @@ public:
       an empty optional
     */
   std::optional<int> get_var_offset(std::string var_name);
+
+  /*    
+        Returns the offest to subtract from the stack pointer based on the offsets of the local variables
+        stored in the symbol table currently pointed to by m_cur_func_iter
+  */
+  int get_cur_func_rsp_offset();
 
   /*
       Adds the mapping from var_name to sym_entry into the global symbol table.
@@ -80,7 +86,11 @@ public:
   /*  Prints every symbol table */
   void print_prog_sym_table();
 
+  /*  Returns a vector containing the arguments to the function */
+  std::vector<std::string> get_cur_func_args();
+
 private:
+
   /*  Points to the function whose symbol table is currently being operated on */
   std::unordered_map<std::string, Function_symbol_table>::iterator m_cur_func_iter;
 

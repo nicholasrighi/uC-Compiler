@@ -104,9 +104,9 @@ void Dec_before_use::dispatch(Func_dec &node)
 
     if (node.m_args != nullptr)
     {
-        for (auto &func_arg : node.m_args->m_sub_expressions)
+        for (auto rev_it = node.m_args->m_sub_expressions.rbegin(); rev_it != node.m_args->m_sub_expressions.rend(); rev_it++)
         {
-            func_arg->accept(*this);
+            (*rev_it)->accept(*this);
         }
     }
 

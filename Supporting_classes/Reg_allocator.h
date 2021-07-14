@@ -25,11 +25,11 @@ enum class x86_Register
   r12,
   r13,
   r14,
-  r15,
   RCX,
   RBX,
   RSI,
-  RDI
+  RDI,
+  RDX
 };
 
 /*  Returns the string representation of an x86 register */
@@ -71,9 +71,21 @@ public:
   void generate_asm_file();
 
 private:
-
   /*  adds regsiters currently in use to m_caller_saved_regs */
   void mark_in_use_regs();
+
+  /*  
+      adds registers used in function argument, in reverse order (so RDI is at the front of 
+      m_caller_saved_regs), to the front of m_caller_saved_regs
+  */
+  void mark_func_arg_regs();
+
+  /*  Allocates function arguments to registers */
+  void setup_initial_regs(const CFG_node &node,
+                          std::vector<three_addr_code_entry> &IR_code);
+
+  /*  Loads function arguments into the appropriate registers for the function call */
+  void move_func_args_to_regs();
 
   /*  Print the CFG nodes to the file */
   void print_CFG();
@@ -82,7 +94,8 @@ private:
   void print_register_contents();
 
   /*  Helper function for printing the next use of a variable to the debug log */
-  void print_next_var_use(Three_addr_var &var, std::optional<int> next_use);
+  void print_next_var_use(Three_addr_var &var,
+                          std::optional<int> next_use);
 
   /*  Helper function for retrieving the Three_address var from a register entry */
   Three_addr_var &reg_entry_var(register_entry &);
@@ -98,16 +111,19 @@ private:
      variables should be added to the UEVar set for each node in the CFG corresponding to the 
      three_addr_code entry
   */
-  void generate_varkill_uevar(std::vector<three_addr_code_entry>&);
+  void generate_varkill_uevar(std::vector<three_addr_code_entry> &);
 
   /*  Empties the CFG data members */
   void reset_cfg_data_members();
 
+  /*  Empties the register data */
+  void reset_registers();
+
   /*  Generates a control flow graph for m_three_addr_code from the passed vector */
-  void generate_CFG(std::vector<three_addr_code_entry>&);
+  void generate_CFG(std::vector<three_addr_code_entry> &);
 
   /*  Generates a live out set for each basic block in the CFG based on the specified three_addr_code_entry*/
-  void generate_live_out_overall(std::vector<three_addr_code_entry>&);
+  void generate_live_out_overall(std::vector<three_addr_code_entry> &);
 
   /*  
       Generates the liveout set for the specified CFG_node based on all sucessors of the specified node 
@@ -117,7 +133,8 @@ private:
 
   /*  Generates assembly based on the CFG node and the LiveOut set of each basic
    * block */
-  void generate_assembly_from_CFG_node(const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
+  void generate_assembly_from_CFG_node(const CFG_node &node,
+                                       std::vector<three_addr_code_entry> &IR_code);
 
   /*
       Saves all variables in node's live out set that reside in registers to memory
@@ -126,8 +143,10 @@ private:
   void save_live_out_vars(const CFG_node &node);
 
   /*  Generates a single line of assembly using up to three registers and one op code */
-  void generate_asm_line(std::optional<x86_Register>, Three_addr_OP, std::optional<x86_Register>,
-                         std::optional<x86_Register>, std::string jmp_target = "");
+  void generate_asm_line(std::optional<x86_Register>,
+                         Three_addr_OP, std::optional<x86_Register>,
+                         std::optional<x86_Register>,
+                         std::string jmp_target = "");
 
   /*
     Allocates a register for the specified variable. If the variable is already
@@ -136,8 +155,10 @@ private:
     that now free register. If var_to_be_allocated is a label or a raw string, then
     ensure allocates nothing and returns an empty optional
   */
-  std::optional<x86_Register> ensure(const Three_addr_var &var_to_be_alloced, int start_index,
-                                     const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
+  std::optional<x86_Register> ensure(const Three_addr_var &var_to_be_alloced,
+                                     int start_index,
+                                     const CFG_node &node,
+                                     std::vector<three_addr_code_entry> &IR_code);
 
   /*
      Finds and returns the x86_Register that will be used the furthest in the
@@ -146,13 +167,16 @@ private:
      m_allocated_reg_data
   */
   x86_Register allocate_reg(const Three_addr_var &var_to_be_allocated,
-                            int start_index, const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
+                            int start_index,
+                            const CFG_node &node,
+                            std::vector<three_addr_code_entry> &IR_code);
 
   /*
       Frees the specified register by setting it to free in m_register_free_status and 
       putting the register onto m_free_reg_stack
   */
-  void free(x86_Register reg_to_free, const CFG_node& node);
+  void free(x86_Register reg_to_free,
+            const CFG_node &node);
 
   /*
     Stores the value allocated in var_to_free to the offset specified in the symbol table. If the variable
@@ -162,20 +186,23 @@ private:
   void store_reg(x86_Register reg_to_free);
 
   /*  Emits assembly to load the value stored in var_to_be_allocated into free_reg */
-  void load_reg(const Three_addr_var& var_to_be_allocated, x86_Register free_reg);
+  void load_reg(const Three_addr_var &var_to_be_allocated,
+                x86_Register free_reg);
 
   /*
       If the specified variable is contained in a register returns that register. Otherwise returns
       an empty optional
   */
-  std::optional<x86_Register> find_allocated_var(const Three_addr_var& var_to_be_allocated);
+  std::optional<x86_Register> find_allocated_var(const Three_addr_var &var_to_be_allocated);
 
   /*
     Returns the next instruction at which var_name is used. If var_name isn't
     used after start_index, returns an empty optional
   */
-  std::optional<int> dist_to_next_var_occurance(
-      const Three_addr_var &search_var, int start_index, const CFG_node &node, std::vector<three_addr_code_entry>& IR_code);
+  std::optional<int> dist_to_next_var_occurance(const Three_addr_var &search_var,
+                                                int start_index,
+                                                const CFG_node &node,
+                                                std::vector<three_addr_code_entry> &IR_code);
 
   /*
     Returns the specified variable's offset in the symbol table. If the variable
@@ -216,15 +243,34 @@ private:
   std::vector<register_entry> m_allocated_reg_data;
 
   /*
-      m_register_free_status[i] is true if the register in
-      m_allocated_reg_data[i] is free (contains no data that will be used later),
-      otherwise is false
+      m_register_free_status[i] is true if the register in m_allocated_reg_data[i] is free.
+      Otherwise is false
   */
   std::vector<bool> m_register_free_status;
 
   /*  Holds free x86 registers */
   std::stack<x86_Register> m_free_reg_stack;
-  
+
   /*  Holds registers saved before a function call */
   std::vector<x86_Register> m_caller_saved_regs;
+
+  /*  Registers used by the x86_64 calling convention for passing the first 6 arguments to a function */
+  const std::vector<x86_Register> m_calling_convention_regs = {x86_Register::RDI,
+                                                               x86_Register::RSI,
+                                                               x86_Register::RDX,
+                                                               x86_Register::RCX,
+                                                               x86_Register::r8,
+                                                               x86_Register::r9};
+
+  /*  Registers not used in x86_calling convention */
+  const std::vector<x86_Register> m_regs_not_containing_args = {x86_Register::RBX,
+                                                                x86_Register::r10,
+                                                                x86_Register::r11,
+                                                                x86_Register::r12,
+                                                                x86_Register::r13,
+                                                                x86_Register::r14};
+
+  int m_calling_vec_index = 0;
+
+  const int m_last_reg_index = static_cast<int>(x86_Register::RDX);
 };

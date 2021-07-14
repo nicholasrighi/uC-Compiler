@@ -1,5 +1,7 @@
 #include "Reg_allocator.h"
 
+#include <algorithm>
+
 std::string x86_Register_to_string(x86_Register reg)
 {
   switch (reg)
@@ -25,9 +27,6 @@ std::string x86_Register_to_string(x86_Register reg)
   case x86_Register::r14:
     return "%r14";
     break;
-  case x86_Register::r15:
-    return "%r15";
-    break;
   case x86_Register::RCX:
     return "%rcx";
     break;
@@ -39,6 +38,9 @@ std::string x86_Register_to_string(x86_Register reg)
     break;
   case x86_Register::RDI:
     return "%rdi";
+    break;
+  case x86_Register::RDX:
+    return "%rdx";
     break;
   default:
     return "Error, invalid register name passed to x86_Register_to_string function";
@@ -55,12 +57,17 @@ Reg_allocator::Reg_allocator(std::string asm_file_name, std::ofstream &debug_log
 
   m_asm_file << ".globl main" << std::endl;
 
-  for (int i = 0; i < static_cast<int>(x86_Register::RDI); i++)
+  m_register_free_status = std::vector<bool>(m_last_reg_index + 1, true);
+
+  /*  
+      Needs to <= RDX since we need RDX to be added to the register list as well as all the other registers 
+      Don't setup the free register stack, since free register stack is setup when registers are allocated
+      for function arguments
+  */
+  for (int i = 0; i <= m_last_reg_index; i++)
   {
     x86_Register cur_reg = static_cast<x86_Register>(i);
     m_allocated_reg_data.push_back(std::make_tuple(Three_addr_var(), cur_reg, std::nullopt));
-    m_register_free_status.push_back(true);
-    m_free_reg_stack.push(cur_reg);
   }
 }
 
@@ -84,11 +91,18 @@ void Reg_allocator::generate_asm_file()
     /*  The first entry in each function is a label containing the function name */
     m_prog_sym_table.set_search_func(std::get<2>(cur_IR_code.front()).to_string());
     reset_cfg_data_members();
+    reset_registers();
     generate_CFG(cur_IR_code);
     generate_live_out_overall(cur_IR_code);
     print_CFG();
-    for (auto &CFG_node : m_cfg_graph)
+    for (int i = 0; i < m_cfg_graph.size(); i++)
     {
+      auto &CFG_node = m_cfg_graph.at(i);
+      if (i == 0)
+      {
+        m_calling_vec_index = 0;
+        setup_initial_regs(CFG_node.first, cur_IR_code);
+      }
       if (!CFG_node.second)
       {
         generate_assembly_from_CFG_node(CFG_node.first, cur_IR_code);
@@ -135,10 +149,51 @@ void Reg_allocator::mark_in_use_regs()
 {
   for (int i = 0; i < m_allocated_reg_data.size(); i++)
   {
-    if (!m_register_free_status.at(i))
+    /*  Only save register if register is in use and register doesn't hold a function argument */
+    if (!m_register_free_status.at(i) &&
+        find(m_calling_convention_regs.begin(), m_calling_convention_regs.end(), static_cast<x86_Register>(i)) == m_calling_convention_regs.end())
     {
       m_caller_saved_regs.push_back(static_cast<x86_Register>(i));
     }
+  }
+}
+
+void Reg_allocator::mark_func_arg_regs()
+{
+  auto end_of_args_iter = m_calling_convention_regs.begin() + m_prog_sym_table.get_cur_func_args().size();
+
+  for (end_of_args_iter--; end_of_args_iter >= m_calling_convention_regs.begin(); end_of_args_iter--)
+  {
+    m_caller_saved_regs.insert(m_caller_saved_regs.begin(), *end_of_args_iter);
+  }
+}
+
+void Reg_allocator::setup_initial_regs(const CFG_node &node,
+                                       std::vector<three_addr_code_entry> &IR_code)
+{
+  for (int cur_arg = 0; cur_arg < m_prog_sym_table.get_cur_func_args().size(); cur_arg++)
+  {
+    Three_addr_var func_arg(m_prog_sym_table.get_cur_func_args().at(cur_arg));
+
+    m_register_free_status.at(static_cast<int>(m_calling_convention_regs.at(cur_arg))) = false;
+
+    register_entry &cur_entry =
+        m_allocated_reg_data.at(static_cast<int>(m_calling_convention_regs.at(cur_arg)));
+
+    reg_entry_var(cur_entry) = func_arg;
+    reg_entry_dist(cur_entry) = dist_to_next_var_occurance(func_arg, 0, node, IR_code);
+    reg_entry_reg(cur_entry) = m_calling_convention_regs.at(cur_arg);
+  }
+
+  int first_unused_index = m_prog_sym_table.get_cur_func_args().size();
+
+  for (int i = first_unused_index; i < m_calling_convention_regs.size(); i++)
+  {
+    m_free_reg_stack.push(m_calling_convention_regs.at(i));
+  }
+  for (x86_Register reg : m_regs_not_containing_args)
+  {
+    m_free_reg_stack.push(reg);
   }
 }
 
@@ -238,6 +293,18 @@ void Reg_allocator::reset_cfg_data_members()
 {
   m_start_index_to_graph_index.clear();
   m_cfg_graph.clear();
+}
+
+/*  This function needs to clear m_allocated_reg_data, m_register_free_status, m_free_reg_stack */
+void Reg_allocator::reset_registers()
+{
+  for (auto &entry : m_allocated_reg_data)
+  {
+    reg_entry_dist(entry) = std::nullopt;
+    reg_entry_var(entry) = Three_addr_var();
+  }
+  m_register_free_status = std::vector<bool>(m_last_reg_index + 1, true);
+  m_free_reg_stack = {};
 }
 
 /*  
@@ -383,7 +450,6 @@ bool Reg_allocator::generate_live_out_from_node(CFG_node &node)
   return node.m_live_out.size() != prev_live_out_size;
 }
 
-
 void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
                                       Three_addr_OP op,
                                       std::optional<x86_Register> reg_1,
@@ -401,169 +467,149 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     }
   };
 
+  auto write_cmp_val = [this](std::string custom_cmp,
+                              std::vector<std::string> &asm_list,
+                              std::optional<x86_Register> reg_1,
+                              std::optional<x86_Register> reg_2,
+                              std::optional<x86_Register> result_reg)
+  {
+    asm_list.push_back("xor %r15, %r15");
+    asm_list.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
+    asm_list.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
+    asm_list.push_back(custom_cmp);
+    asm_list.push_back("mov %r15, " + x86_Register_to_string(result_reg.value()));
+  };
+
   switch (op)
   {
   case Three_addr_OP::RETURN_VAL:
     asm_vec.push_back("mov %rax," + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
-  case Three_addr_OP::COPY_ARG:
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", " + jmp_target);
-    write_to_file(m_asm_file, asm_vec);
-    break;
-  case Three_addr_OP::POP:
-    asm_vec.push_back("pop " + jmp_target);
-    write_to_file(m_asm_file, asm_vec);
-    break;
-  case Three_addr_OP::PUSH:
-    asm_vec.push_back("push " + jmp_target);
-    write_to_file(m_asm_file, asm_vec);
-    break;
-  case Three_addr_OP::CALL:
+  case Three_addr_OP::SAVE_REGS:
     mark_in_use_regs();
     for (x86_Register cur_reg : m_caller_saved_regs)
     {
       asm_vec.push_back("push " + x86_Register_to_string(cur_reg));
     }
-    asm_vec.push_back("push %rbp");
-    asm_vec.push_back("call " + jmp_target);
-    asm_vec.push_back("pop %rbp");
+    mark_func_arg_regs();
+    break;
+  case Three_addr_OP::RESTORE_REGS:
     for (auto rev_it = m_caller_saved_regs.rbegin(); rev_it != m_caller_saved_regs.rend(); rev_it++)
     {
       asm_vec.push_back("pop " + x86_Register_to_string(*rev_it));
     }
     m_caller_saved_regs.clear();
-    write_to_file(m_asm_file, asm_vec);
+    m_calling_vec_index = 0;
+    break;
+  case Three_addr_OP::LOAD_ARG:
+    /*  Save register if register is in use */
+    if (!m_register_free_status.at(static_cast<int>(m_calling_convention_regs.at(m_calling_vec_index))))
+    {
+      asm_vec.push_back("push " + x86_Register_to_string(m_calling_convention_regs.at(m_calling_vec_index)));
+      m_caller_saved_regs.push_back(m_calling_convention_regs.at(m_calling_vec_index));
+    }
+    asm_vec.push_back(
+        "mov " + x86_Register_to_string(reg_1.value()) +
+        ", " + x86_Register_to_string(m_calling_convention_regs.at(m_calling_vec_index)));
+    m_calling_vec_index++;
+    break;
+  case Three_addr_OP::CALL:
+    asm_vec.push_back("push %rbp");
+    asm_vec.push_back("call " + jmp_target);
+    asm_vec.push_back("pop %rbp");
     break;
   case Three_addr_OP::RAW_STR:
     asm_vec.push_back(jmp_target);
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::LOAD:
     asm_vec.push_back("mov (%rbp," + x86_Register_to_string(reg_1.value()) + ",1), " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::STORE:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", (%rbp," + x86_Register_to_string(reg_1.value()) + ",1)");
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::ADD:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
     asm_vec.push_back("add " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::SUB:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
     asm_vec.push_back("sub " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::MULT:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
     asm_vec.push_back("imul " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::DIVIDE:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
+    if (!m_register_free_status.at(m_last_reg_index))
+    {
+      asm_vec.push_back("push %rdx");
+    }
     asm_vec.push_back("xor %rdx, %rdx");
     asm_vec.push_back("idiv " + x86_Register_to_string(reg_2.value()));
     asm_vec.push_back("mov %rax, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    if (!m_register_free_status.at(m_last_reg_index))
+    {
+      asm_vec.push_back("pop %rdx");
+    }
     break;
   case Three_addr_OP::RET:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
     asm_vec.push_back("ret");
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::BIT_AND:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
     asm_vec.push_back("and " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::BIT_OR:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
     asm_vec.push_back("or " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::ASSIGN:
     if (reg_1.value() != result_reg.value())
     {
       asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
-      write_to_file(m_asm_file, asm_vec);
     }
     break;
   case Three_addr_OP::CMP:
     asm_vec.push_back("cmp " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_2.value()));
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::UNCOND_J:
     asm_vec.push_back("jmp " + jmp_target);
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::EQUAL_J:
     asm_vec.push_back("je " + jmp_target);
-    write_to_file(m_asm_file, asm_vec);
     break;
   case Three_addr_OP::NEQUAL_J:
     asm_vec.push_back("jne " + jmp_target);
-    write_to_file(m_asm_file, asm_vec);
     break;
   /*  Treat func names the same as labels */
   case Three_addr_OP::LABEL:
     asm_vec.push_back(jmp_target + ":");
-    write_to_file(m_asm_file, asm_vec, "");
     break;
   case Three_addr_OP::EQUALITY:
-    asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
-    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
-    asm_vec.push_back("sete %dl");
-    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    write_cmp_val("sete %r15b", asm_vec, reg_1, reg_2, result_reg);
     break;
   case Three_addr_OP::NOT_EQUALITY:
-    asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
-    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
-    asm_vec.push_back("setne %dl");
-    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    write_cmp_val("setne %r15b", asm_vec, reg_1, reg_2, result_reg);
     break;
   case Three_addr_OP::LESS_THAN:
-    asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
-    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
-    asm_vec.push_back("setl %dl");
-    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    write_cmp_val("setl %r15b", asm_vec, reg_1, reg_2, result_reg);
     break;
   case Three_addr_OP::LESS_THAN_EQUAL:
-    asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
-    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
-    asm_vec.push_back("setle %dl");
-    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    write_cmp_val("setle %r15b", asm_vec, reg_1, reg_2, result_reg);
     break;
   case Three_addr_OP::GREATER_THAN:
-    asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
-    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
-    asm_vec.push_back("setg %dl");
-    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    write_cmp_val("setg %r15b", asm_vec, reg_1, reg_2, result_reg);
     break;
   case Three_addr_OP::GREATER_THAN_EQUAL:
-    asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", %rax");
-    asm_vec.push_back("cmp " + x86_Register_to_string(reg_2.value()) + ", %rax");
-    asm_vec.push_back("setge %dl");
-    asm_vec.push_back("mov %rdx, " + x86_Register_to_string(result_reg.value()));
-    write_to_file(m_asm_file, asm_vec);
+    write_cmp_val("setge %r15b", asm_vec, reg_1, reg_2, result_reg);
     break;
   default:
-    m_asm_file << "Error, invalid op code passed to generate_asm_line " << std::endl;
+    asm_vec.push_back("Error, invalid op code passed to generate_asm_line ");
     break;
   }
+  write_to_file(m_asm_file, asm_vec);
 }
 
 void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
@@ -742,7 +788,8 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
     register_entry &reg_entry_being_freed = m_allocated_reg_data.at(next_furthest_use_index);
 
     /*  Only write to memory if register has a temporary variable that is used later in this block */
-    if (reg_entry_var(reg_entry_being_freed).is_string() && dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node, IR_code))
+    if (reg_entry_var(reg_entry_being_freed).is_string() &&
+        dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node, IR_code))
     {
       store_reg(reg_entry_reg(reg_entry_being_freed));
     }

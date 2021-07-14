@@ -42,6 +42,12 @@ public:
    */
    std::optional<int> get_var_offset(std::string name);
 
+   /*
+      Retruns the amount to shift the stack pointer down based on the offsets of the local variables
+      stored in the symbol table
+   */
+   int get_rsp_offset();
+
    /* prints all symbols defined in the symbol table. Used for debugging only */
    void print_sym_table();
 
@@ -71,7 +77,11 @@ private:
    */
    std::vector<std::unordered_map<std::string, sym_table_entry>> m_chained_sym_table;
 
+   /* Stores function arguments and associated variable data */
    std::unordered_map<std::string, sym_table_entry> m_func_arg_table;
+
+   /* Stores function arguments in order they were declared, used for get_func_arg_names() */
+   std::vector<std::string> m_func_arg_vec;
 
    /* 
      Adds a variable of the specified type to the most nested symbol table. Returns false if
@@ -90,7 +100,7 @@ private:
       The offset that the next local variable will be given when added to the symbol table 
       This value isn't used if the function_symbol_table is holding global variables
    */
-   int m_local_var_offset = 0;
+   int m_local_var_offset = -8;
 
    int m_func_args_offset = 0;
 };

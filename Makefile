@@ -3,7 +3,7 @@ PARSER_FILE=parser
 EXE_NAME=compiler
 BISON_FLAGS= --debug -d
 CC=g++
-C_FLAGS=-Wall -Wno-sign-compare -Wno-write-strings -std=c++17 -g 
+C_FLAGS=-Wall -Wpedantic -Wno-sign-compare -Wno-write-strings -std=c++17 -g 
 SAN_FLAGS=-ggdb -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -static-libstdc++ -static-libasan -lrt
 
 .PHONY:test
@@ -21,8 +21,9 @@ debug: $(PARSER_FILE).l $(GRAMMAR_FILE).y
 test:
 	./compiler -f known_good_test_files/simple_test.c -o asm.s
 	gcc -g asm.s -o test
-	gcc known_good_test_files/simple_test.c -o test2
+	gcc known_good_test_files/simple_test.c -g -o test2
 
 clean:
 	-rm *.tab* $(EXE_NAME) *.yy.c* *.output* test *.s debug_log.txt
+
 

@@ -20,14 +20,6 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-const std::vector<std::string> regs_for_passing_func_args{
-    "%rdi",
-    "%rsi",
-    "%rdx",
-    "%rcx",
-    "%r8",
-    "%r9"};
-
 /* returns the next avaliable temporary variable */
 std::string Three_addr_gen::gen_temp()
 {
@@ -415,6 +407,7 @@ void Three_addr_gen::dispatch(Binop_dec &node)
 
 void Three_addr_gen::dispatch(Func_dec &node)
 {
+  m_sym_table.set_search_func(node.get_name());
 
   m_intermediate_rep.push_back(std::vector<three_addr_code_entry>());
 
@@ -422,8 +415,11 @@ void Three_addr_gen::dispatch(Func_dec &node)
 
   Three_addr_var func_label(node.get_name(), Three_addr_var_type::LABEL);
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, func_label, Three_addr_var()));
+
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("push %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("mov %rsp, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("add $-8, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("add $" + std::to_string(m_sym_table.get_cur_func_rsp_offset()) + ", %rsp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+ 
 
   node.m_func_body->accept(*this);
 
@@ -445,36 +441,42 @@ void Three_addr_gen::dispatch(Func_ref &node)
     reg_arg_num = 0;
   }
 
+  /*  Move stack pointer to prevent base pointer from being corrupted */
+  /*
   Three_addr_var sub_rsp = Three_addr_var("add $-16, %rsp", Three_addr_var_type::RAW_STR);
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, sub_rsp, Three_addr_var()));
-
-  /*  Push regs onto stack */
-  /*
-  for (int i = 0; i < reg_arg_num; i++)
-  {
-    Three_addr_var push_reg = Three_addr_var(regs_for_passing_func_args.at(i), Three_addr_var_type::RAW_STR);
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::PUSH, push_reg, Three_addr_var()));
-    node.m_args->m_sub_expressions.at(i)->accept(*this);
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::COPY_ARG, push_reg, m_last_entry));
-  }
+  m_intermediate_rep.back().push_back(
+      std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, sub_rsp, Three_addr_var()));
   */
 
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CALL, Three_addr_var(node.m_var->m_name, Three_addr_var_type::RAW_STR), Three_addr_var()));
-
-  /*  Pop register off the stack in the opposite order we pushed them on */
-  /*
-  for (int i = reg_arg_num - 1; i >= 0; i--)
+  /*  Load function args into registers */
+  for (int arg_index = 0; arg_index < reg_arg_num; arg_index++)
   {
-    Three_addr_var push_reg = Three_addr_var(regs_for_passing_func_args.at(i), Three_addr_var_type::RAW_STR);
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::POP, push_reg, Three_addr_var()));
+    node.m_args->m_sub_expressions.at(arg_index)->accept(*this);
+    m_intermediate_rep.back().push_back(
+        std::make_tuple(Three_addr_var(), Three_addr_OP::LOAD_ARG, m_last_entry, Three_addr_var()));
   }
-  */
 
+  /*  Save all in use registers */
+  m_intermediate_rep.back().push_back(
+      std::make_tuple(Three_addr_var(), Three_addr_OP::SAVE_REGS, Three_addr_var(), Three_addr_var()));
+
+  m_intermediate_rep.back().push_back(
+      std::make_tuple(Three_addr_var(), Three_addr_OP::CALL, Three_addr_var(node.m_var->m_name, Three_addr_var_type::RAW_STR), Three_addr_var()));
+
+  /*  Restore function args */
+  m_intermediate_rep.back().push_back(
+      std::make_tuple(Three_addr_var(), Three_addr_OP::RESTORE_REGS, Three_addr_var(), Three_addr_var()));
+
+  /*  Restore stack pointer */
+  /*
   Three_addr_var add_rsp = Three_addr_var("add $16, %rsp", Three_addr_var_type::RAW_STR);
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, add_rsp, Three_addr_var()));
+  m_intermediate_rep.back().push_back(
+      std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, add_rsp, Three_addr_var()));
+  */
 
   Three_addr_var return_tmp(gen_temp());
-  m_intermediate_rep.back().push_back(std::make_tuple(return_tmp, Three_addr_OP::RETURN_VAL, Three_addr_var(), Three_addr_var()));
+  m_intermediate_rep.back().push_back(
+      std::make_tuple(return_tmp, Three_addr_OP::RETURN_VAL, Three_addr_var(), Three_addr_var()));
   m_last_entry = return_tmp;
 }
 
@@ -517,7 +519,11 @@ void Three_addr_gen::dispatch(Return_dec &node)
 {
   node.m_return_value->accept(*this);
 
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, m_last_entry, Three_addr_var()));
+  Three_addr_var ret_tmp(gen_temp());
+  m_intermediate_rep.back().push_back(std::make_tuple(ret_tmp, Three_addr_OP::ASSIGN, m_last_entry, Three_addr_var()));
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("sub $" + std::to_string(m_sym_table.get_cur_func_rsp_offset()) + ", %rsp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, ret_tmp, Three_addr_var()));
 }
 
 void Three_addr_gen::dispatch(Stmt_dec &node)
@@ -566,17 +572,53 @@ void Three_addr_gen::dispatch(While_dec &node)
 
 std::string three_op_to_string(Three_addr_OP op)
 {
-  if (op == Three_addr_OP::MOVE)
+  if (op == Three_addr_OP::RAW_STR)
+  {
+    return "RAW str: ";
+  }
+  else if (op == Three_addr_OP::CALL)
+  {
+    return "CALL ";
+  }
+  else if (op == Three_addr_OP::MOVE)
   {
     return "MOVE";
+  }
+  else if (op == Three_addr_OP::CMP)
+  {
+    return "CMP";
   }
   else if (op == Three_addr_OP::LOAD)
   {
     return "LOAD";
   }
+  else if (op == Three_addr_OP::LOAD_ARG)
+  {
+    return "LOAD ARG";
+  }
+  else if (op == Three_addr_OP::SAVE_REGS)
+  {
+    return "SAVE REGS";
+  }
+  else if (op == Three_addr_OP::RESTORE_REGS)
+  {
+    return "RESTORE REGS";
+  }
+  else if (op == Three_addr_OP::RETURN_VAL)
+  {
+    return "RETURN VAL ";
+  }
   else if (op == Three_addr_OP::ASSIGN)
   {
     return "ASSIGN";
+  }
+  else if (op == Three_addr_OP::EQUALITY)
+  {
+    return "EQUAL ";
+  }
+  else if (op == Three_addr_OP::NOT_EQUALITY)
+  {
+    return "NOT EQUAL ";
   }
   else if (op == Three_addr_OP::STORE)
   {
@@ -642,14 +684,6 @@ std::string three_op_to_string(Three_addr_OP op)
   {
     return "RET";
   }
-  else if (op == Three_addr_OP::LABEL)
-  {
-    return "LABEL";
-  }
-  else if (op == Three_addr_OP::CMP)
-  {
-    return "CMP";
-  }
   else if (op == Three_addr_OP::UNCOND_J)
   {
     return "J";
@@ -662,37 +696,9 @@ std::string three_op_to_string(Three_addr_OP op)
   {
     return "JNE";
   }
-  else if (op == Three_addr_OP::RAW_STR)
+  else if (op == Three_addr_OP::LABEL)
   {
-    return "RAW str: ";
-  }
-  else if (op == Three_addr_OP::EQUALITY)
-  {
-    return "EQUAL ";
-  }
-  else if (op == Three_addr_OP::NOT_EQUALITY)
-  {
-    return "NOT EQUAL ";
-  }
-  else if (op == Three_addr_OP::CALL)
-  {
-    return "CALL ";
-  }
-  else if (op == Three_addr_OP::COPY_ARG)
-  {
-    return "COPY ARG ";
-  }
-  else if (op == Three_addr_OP::RETURN_VAL)
-  {
-    return "RETURN VAL ";
-  }
-  else if (op == Three_addr_OP::PUSH)
-  {
-    return "PUSH ";
-  }
-  else if (op == Three_addr_OP::POP)
-  {
-    return "POP ";
+    return "LABEL";
   }
   return "Error, invalid op recieved";
 }

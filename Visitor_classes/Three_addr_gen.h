@@ -18,12 +18,12 @@ enum class Three_addr_OP
 {
   RAW_STR, 
   CALL,
-  PUSH,
-  POP,
   MOVE,
   CMP,
   LOAD,
-  COPY_ARG,
+  LOAD_ARG,
+  SAVE_REGS,
+  RESTORE_REGS,
   RETURN_VAL,
   ASSIGN,
   EQUALITY,
@@ -47,7 +47,7 @@ enum class Three_addr_OP
   UNCOND_J,
   EQUAL_J,
   NEQUAL_J,
-  LABEL,                 //indicates that the instruction is simply the destination of a jump instruction
+  LABEL 
 };
 
 /*  Returns the string representation of a given three op code */

@@ -51,6 +51,10 @@ std::optional<int> Program_symbol_table::get_var_offset(std::string var_name)
   return m_global_sym_table.get_var_offset(var_name);
 }
 
+int Program_symbol_table::get_cur_func_rsp_offset() {
+  return m_cur_func_iter->second.get_rsp_offset();
+}
+
 bool Program_symbol_table::add_global_var(std::string name, Var_dec *var_dec)
 {
   return m_global_sym_table.add_var(name, var_dec, Var_storage::GLOBAL);
@@ -130,4 +134,11 @@ void Program_symbol_table::print_prog_sym_table()
     std::cout << "Function " << table.first << " has symbol table " << std::endl;
     table.second.print_sym_table();
   }
+}
+
+std::vector<std::string> Program_symbol_table::get_cur_func_args() {
+  if (m_cur_func_iter != m_function_sym_table.end()) {
+    return m_cur_func_iter->second.get_func_arg_names();
+  }
+  return std::vector<std::string>();
 }
