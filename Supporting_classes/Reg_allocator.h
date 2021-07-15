@@ -169,7 +169,7 @@ private:
   x86_Register allocate_reg(const Three_addr_var &var_to_be_allocated,
                             int start_index,
                             const CFG_node &node,
-                            std::vector<three_addr_code_entry> &IR_code);
+                            const std::vector<three_addr_code_entry> &IR_code);
 
   /*
       Frees the specified register by setting it to free in m_register_free_status and 
@@ -202,7 +202,7 @@ private:
   std::optional<int> dist_to_next_var_occurance(const Three_addr_var &search_var,
                                                 int start_index,
                                                 const CFG_node &node,
-                                                std::vector<three_addr_code_entry> &IR_code);
+                                                const std::vector<three_addr_code_entry> &IR_code);
 
   /*
     Returns the specified variable's offset in the symbol table. If the variable

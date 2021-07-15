@@ -17,6 +17,8 @@
 enum class Three_addr_OP
 {
   RAW_STR, 
+  BACK_PATCH_DEC,
+  BACK_PATCH_INC,
   CALL,
   MOVE,
   CMP,
@@ -91,14 +93,17 @@ private:
   /*  Removes labels that aren't the targets of any jmp instructions from m_intermediate_rep */ 
   void remove_unused_labels();
 
-  /*  Adds an instruction to m_intermediate_rep to move func_arg into the specified registerr */
-  void add_func_args(Var_dec* func_arg, std::string reg);
-
   /*  
       Replaces adjacent labels with a single label. Replaces all references to deleted labels with references
       to the new labels
   */
   void merge_adjacent_labels();
+
+  /*
+      Replaces all instances of Three_addr_OP::BACKPATCH_INC and Three_addr_OP::BACKPATCH_DEC with an 
+      increment or decrement of the stack pointer by the offset returned by the symbol table
+  */ 
+  void backpatch_offsets();
 
   /* returns the next avaliable temporary variable */
   std::string gen_temp();

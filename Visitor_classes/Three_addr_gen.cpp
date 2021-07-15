@@ -20,12 +20,14 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-/* returns the next avaliable temporary variable */
+/* returns the next avaliable temporary variable and adds the temporary variable to the symbol table */
 std::string Three_addr_gen::gen_temp()
 {
   int stored_index = m_temp_index;
   m_temp_index++;
-  return "t" + std::to_string(stored_index);
+  std::string temp_var = "t" + std::to_string(stored_index);
+  m_sym_table.add_local_var(temp_var, nullptr);
+  return temp_var;
 }
 
 /* Returns the next avaliable label  */
@@ -170,6 +172,27 @@ void Three_addr_gen::merge_adjacent_labels()
     }
   }
   m_intermediate_rep.back() = std::move(optimized_code);
+}
+
+void Three_addr_gen::backpatch_offsets()
+{
+  std::string offset_str = std::to_string(m_sym_table.get_cur_func_rsp_offset());
+  Three_addr_var backpathc_inc_var = Three_addr_var("sub $" + offset_str + ", %rsp", Three_addr_var_type::RAW_STR);
+  Three_addr_var backpath_dec_var = Three_addr_var("add $" + offset_str + ", %rsp", Three_addr_var_type::RAW_STR);
+
+  for (three_addr_code_entry &cur_entry : m_intermediate_rep.back())
+  {
+    if (std::get<1>(cur_entry) == Three_addr_OP::BACK_PATCH_DEC)
+    {
+      std::get<2>(cur_entry) = backpath_dec_var;
+      std::get<1>(cur_entry) = Three_addr_OP::RAW_STR;
+    }
+    if (std::get<1>(cur_entry) == Three_addr_OP::BACK_PATCH_INC)
+    {
+      std::get<2>(cur_entry) = backpathc_inc_var;
+      std::get<1>(cur_entry) = Three_addr_OP::RAW_STR;
+    }
+  }
 }
 
 void Three_addr_gen::print_IR_code()
@@ -418,15 +441,17 @@ void Three_addr_gen::dispatch(Func_dec &node)
 
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("push %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("mov %rsp, %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("add $" + std::to_string(m_sym_table.get_cur_func_rsp_offset()) + ", %rsp", Three_addr_var_type::RAW_STR), Three_addr_var()));
- 
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_DEC, Three_addr_var(), Three_addr_var()));
 
   node.m_func_body->accept(*this);
+
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
 
   /*  Remove unreachable instructions, delete unused labels, merge adjacent labels together */
   remove_op_trailing_return();
   remove_unused_labels();
   merge_adjacent_labels();
+  backpatch_offsets();
 }
 
 void Three_addr_gen::dispatch(Func_ref &node)
@@ -440,13 +465,6 @@ void Three_addr_gen::dispatch(Func_ref &node)
   {
     reg_arg_num = 0;
   }
-
-  /*  Move stack pointer to prevent base pointer from being corrupted */
-  /*
-  Three_addr_var sub_rsp = Three_addr_var("add $-16, %rsp", Three_addr_var_type::RAW_STR);
-  m_intermediate_rep.back().push_back(
-      std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, sub_rsp, Three_addr_var()));
-  */
 
   /*  Load function args into registers */
   for (int arg_index = 0; arg_index < reg_arg_num; arg_index++)
@@ -466,13 +484,6 @@ void Three_addr_gen::dispatch(Func_ref &node)
   /*  Restore function args */
   m_intermediate_rep.back().push_back(
       std::make_tuple(Three_addr_var(), Three_addr_OP::RESTORE_REGS, Three_addr_var(), Three_addr_var()));
-
-  /*  Restore stack pointer */
-  /*
-  Three_addr_var add_rsp = Three_addr_var("add $16, %rsp", Three_addr_var_type::RAW_STR);
-  m_intermediate_rep.back().push_back(
-      std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, add_rsp, Three_addr_var()));
-  */
 
   Three_addr_var return_tmp(gen_temp());
   m_intermediate_rep.back().push_back(
@@ -521,7 +532,7 @@ void Three_addr_gen::dispatch(Return_dec &node)
 
   Three_addr_var ret_tmp(gen_temp());
   m_intermediate_rep.back().push_back(std::make_tuple(ret_tmp, Three_addr_OP::ASSIGN, m_last_entry, Three_addr_var()));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("sub $" + std::to_string(m_sym_table.get_cur_func_rsp_offset()) + ", %rsp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, ret_tmp, Three_addr_var()));
 }

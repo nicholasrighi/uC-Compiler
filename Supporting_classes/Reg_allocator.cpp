@@ -480,6 +480,9 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     asm_list.push_back("mov %r15, " + x86_Register_to_string(result_reg.value()));
   };
 
+  std::optional<x86_Register> reg_1_div = reg_1;
+  std::optional<x86_Register> reg_2_div = reg_2;
+
   switch (op)
   {
   case Three_addr_OP::RETURN_VAL:
@@ -540,15 +543,42 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     asm_vec.push_back("imul " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(result_reg.value()));
     break;
   case Three_addr_OP::DIVIDE:
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
-    if (!m_register_free_status.at(m_last_reg_index))
+    if (reg_1.value() == reg_2.value())
+    {
+      asm_vec.push_back("mov $1," + x86_Register_to_string(result_reg.value()));
+      break;
+    }
+    else if (reg_1.value() == x86_Register::RDX)
+    {
+      reg_1_div = allocate_reg(Three_addr_var(), 0, CFG_node(0, 0), std::vector<three_addr_code_entry>());
+      asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_1_div.value()));
+      free(reg_1_div.value(), CFG_node(0, 0));
+    }
+    else if (reg_2.value() == x86_Register::RDX)
+    {
+      reg_2_div = allocate_reg(Three_addr_var(), 0, CFG_node(0, 0), std::vector<three_addr_code_entry>());
+      asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(reg_2_div.value()));
+      free(reg_2_div.value(), CFG_node(0, 0));
+    }
+    else if (!m_register_free_status.at(m_last_reg_index) && result_reg.value() != x86_Register::RDX)
     {
       asm_vec.push_back("push %rdx");
     }
+
     asm_vec.push_back("xor %rdx, %rdx");
-    asm_vec.push_back("idiv " + x86_Register_to_string(reg_2.value()));
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_1_div.value()) + ", " + "%rax");
+    asm_vec.push_back("idiv " + x86_Register_to_string(reg_2_div.value()));
     asm_vec.push_back("mov %rax, " + x86_Register_to_string(result_reg.value()));
-    if (!m_register_free_status.at(m_last_reg_index))
+
+    if (reg_1.value() != reg_1_div)
+    {
+      asm_vec.push_back("mov " + x86_Register_to_string(reg_1_div.value()) + ", " + x86_Register_to_string(reg_1.value()));
+    }
+    else if (reg_2.value() != reg_2_div)
+    {
+      asm_vec.push_back("mov " + x86_Register_to_string(reg_2_div.value()) + ", " + x86_Register_to_string(reg_2.value()));
+    }
+    else if (!m_register_free_status.at(m_last_reg_index) && result_reg.value() != x86_Register::RDX)
     {
       asm_vec.push_back("pop %rdx");
     }
@@ -752,7 +782,7 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
 x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocated,
                                          int start_index,
                                          const CFG_node &node,
-                                         std::vector<three_addr_code_entry> &IR_code)
+                                         const std::vector<three_addr_code_entry> &IR_code)
 {
   if (m_free_reg_stack.size() > 0)
   {
@@ -855,12 +885,12 @@ std::optional<x86_Register> Reg_allocator::find_allocated_var(const Three_addr_v
 std::optional<int> Reg_allocator::dist_to_next_var_occurance(const Three_addr_var &search_var,
                                                              int start_index,
                                                              const CFG_node &node,
-                                                             std::vector<three_addr_code_entry> &IR_code)
+                                                             const std::vector<three_addr_code_entry> &IR_code)
 {
   for (int cur_index = start_index; cur_index <= node.m_end_index; cur_index++)
   {
 
-    three_addr_code_entry &cur_entry = IR_code.at(cur_index);
+    const three_addr_code_entry &cur_entry = IR_code.at(cur_index);
 
     if (std::get<0>(cur_entry) == search_var)
     {

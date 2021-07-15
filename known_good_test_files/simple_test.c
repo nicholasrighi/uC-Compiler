@@ -7,14 +7,14 @@ int factorial(int n) {
 
 int main(void)
 {
-	int x[5];
+	int x[6];
 	int sum;
 	int i;
 
 	i = 0;
 	sum = 0;
 
-	while (i < 5) {
+	while (i < 6) {
 		x[i] = factorial(i);
 		sum = sum + x[i];
 		i = i + 1;

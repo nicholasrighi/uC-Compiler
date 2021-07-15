@@ -12,7 +12,7 @@ all: $(CC_EXE) $(CUSTOM_CC_EXE)
 
 # converts .c files to executables using gcc
 %_gcc : %.c
-	$(CC) $< -o $@
+	$(CC) -g $< -o $@
 
 # converts .c files to executables using custom compiler 
 %_custom_cc : %.c
