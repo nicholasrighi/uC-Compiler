@@ -5,6 +5,7 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <fstream>
 
 // local includes
 #include "../AST_classes/Var_dec.h"
@@ -22,7 +23,7 @@ using sym_table_entry = std::tuple<Var_dec *, Var_storage, int>;
 class Function_symbol_table
 {
 public:
-   Function_symbol_table();
+   Function_symbol_table(std::ofstream& debug_file);
 
    /* 
      Adds a variable of the specified type to the most nested symbol table. Returns false if
@@ -71,6 +72,9 @@ public:
    std::vector<std::string> get_func_arg_names(); 
 
 private:
+
+   std::ofstream& m_debug_file;
+
    /*
       Stores a vector of maps that associate a variable name with a symbol table entry. Front of 
       the list is the least nested scope, back of the list is the most nested scope

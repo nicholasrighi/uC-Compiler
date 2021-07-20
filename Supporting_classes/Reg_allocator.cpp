@@ -76,12 +76,6 @@ Reg_allocator::~Reg_allocator()
   m_asm_file.close();
 }
 
-/*  
-  This is stubbed out right now, needs to be fixed later. Needs to call generate_CFG(), then 
-  create liveout set, then loop through all nodes in the CFG and generate assembly for each node.
-  Currently only generates assembly for a single block of the CFG, and the CFG functions aren't complete
-  yet
-*/
 void Reg_allocator::generate_asm_file()
 {
   m_debug_log << "\nStart of debug log for assembly\n"
@@ -91,12 +85,17 @@ void Reg_allocator::generate_asm_file()
     /*  The first entry in each function is a label containing the function name */
     m_prog_sym_table.set_search_func(std::get<2>(cur_IR_code.front()).to_string());
     reset_cfg_data_members();
-    reset_registers();
     generate_CFG(cur_IR_code);
     generate_live_out_overall(cur_IR_code);
     print_CFG();
     for (int i = 0; i < m_cfg_graph.size(); i++)
     {
+      /*  
+          Registers need to be reset after every basic block to ensure that the 
+          correct values are loaded from memory, regardless of where the 
+          control flow was before the current basic block
+      */
+      reset_registers();
       auto &CFG_node = m_cfg_graph.at(i);
       if (i == 0)
       {
@@ -173,7 +172,17 @@ void Reg_allocator::setup_initial_regs(const CFG_node &node,
 {
   for (int cur_arg = 0; cur_arg < m_prog_sym_table.get_cur_func_args().size(); cur_arg++)
   {
-    Three_addr_var func_arg(m_prog_sym_table.get_cur_func_args().at(cur_arg));
+    std::string var_name = m_prog_sym_table.get_cur_func_args().at(cur_arg);
+    Three_addr_var func_arg;
+
+    if (m_prog_sym_table.get_var_dec(var_name).value()->m_obj_type == Object_type::ARRAY)
+    {
+      func_arg = Three_addr_var(var_name, Three_addr_var_type::ARRAY);
+    }
+    else
+    {
+      func_arg = Three_addr_var(var_name);
+    }
 
     m_register_free_status.at(static_cast<int>(m_calling_convention_regs.at(cur_arg))) = false;
 
@@ -227,14 +236,40 @@ void Reg_allocator::print_CFG()
   }
 }
 
-/*  
-  Assumes all operations are of the form "x <- y op z", where y and z are optional
-*/
+/*  Assumes all operations are of the form "x <- y op z", where y and z are optional */
 void Reg_allocator::generate_varkill_uevar(std::vector<three_addr_code_entry> &IR_code)
 {
+
+  auto is_local_array = [this](Three_addr_var &var)
+  {
+    std::optional<Var_dec *> local_var_dec = this->m_prog_sym_table.get_var_dec(var.to_string());
+
+    if (local_var_dec.value() == nullptr)
+    {
+      return false;
+    }
+
+    std::vector<std::string> func_args = this->m_prog_sym_table.get_cur_func_args();
+
+    int is_local_var = find(func_args.begin(), func_args.end(), var.to_string()) == func_args.end();
+
+    return local_var_dec.value()->m_obj_type == Object_type::ARRAY &&
+           is_local_var;
+  };
+
   for (CFG_entry &cur_entry : m_cfg_graph)
   {
     CFG_node &node = cur_entry.first;
+
+    /*  The first node in the CFG graph needs to add the function args to varkill */
+    if (cur_entry.first == m_cfg_graph.front().first)
+    {
+      for (std::string &cur_arg : m_prog_sym_table.get_cur_func_args())
+      {
+        node.m_var_kill.insert(cur_arg);
+      }
+    }
+
     for (int i = node.m_start_index; i <= node.m_end_index; i++)
     {
       Three_addr_var x = std::get<0>(IR_code[i]);
@@ -242,7 +277,7 @@ void Reg_allocator::generate_varkill_uevar(std::vector<three_addr_code_entry> &I
       Three_addr_var z = std::get<3>(IR_code[i]);
 
       /*  If a variable is defined in a basic block then it's added to the varkill set */
-      if (x.is_valid() && !x.is_raw_str() && !x.is_label())
+      if (x.is_var() && !is_local_array(x))
       {
         node.m_var_kill.insert(x.to_string());
       }
@@ -251,12 +286,12 @@ void Reg_allocator::generate_varkill_uevar(std::vector<three_addr_code_entry> &I
           If variables y and z are used but aren't in varkill, they must be defined in an earlier
           basic block. This means they need to be added to ueavar 
       */
-      if (y.is_valid() && y.is_string() && (node.m_var_kill.count(y.to_string()) == 0))
+      if (y.is_var() && !is_local_array(y) && (node.m_var_kill.count(y.to_string()) == 0))
       {
         node.m_uevar.insert(y.to_string());
       }
 
-      if (z.is_valid() && z.is_string() && (node.m_var_kill.count(z.to_string()) == 0))
+      if (z.is_var() && !is_local_array(z) && (node.m_var_kill.count(z.to_string()) == 0))
       {
         node.m_uevar.insert(z.to_string());
       }
@@ -295,16 +330,26 @@ void Reg_allocator::reset_cfg_data_members()
   m_cfg_graph.clear();
 }
 
-/*  This function needs to clear m_allocated_reg_data, m_register_free_status, m_free_reg_stack */
+/*  This function needs to clear m_allocated_reg_data, m_register_free_status, and reset m_free_reg_stack */
 void Reg_allocator::reset_registers()
 {
+  /*  resets m_allocated_reg_data */
   for (auto &entry : m_allocated_reg_data)
   {
     reg_entry_dist(entry) = std::nullopt;
     reg_entry_var(entry) = Three_addr_var();
   }
+
+  /*  Resets m_register_free_status */
   m_register_free_status = std::vector<bool>(m_last_reg_index + 1, true);
+
+  /*  Add all registers to free register stack */
   m_free_reg_stack = {};
+
+  for (int i = 0; i < m_last_reg_index; i++)
+  {
+    m_free_reg_stack.push(static_cast<x86_Register>(i));
+  }
 }
 
 /*  
@@ -414,11 +459,13 @@ bool Reg_allocator::generate_live_out_from_node(CFG_node &node)
 {
   std::vector<int> start_indicies_child_nodes;
 
+  /*  Add child nodes to current CFG node */
   if (node.m_jmp_target.has_value())
   {
     start_indicies_child_nodes.push_back(node.m_jmp_target.value());
   }
 
+  /*  Add child nodes to current CFG node */
   if (node.m_fall_through_target.has_value())
   {
     start_indicies_child_nodes.push_back(node.m_fall_through_target.value());
@@ -435,8 +482,8 @@ bool Reg_allocator::generate_live_out_from_node(CFG_node &node)
     node.m_live_out.insert(child_node.m_uevar.begin(), child_node.m_uevar.end());
 
     /*  
-        Add all variables in the child's live out set that are in the child's live out set but aren't defined
-        in the child's basic block
+        Add all variables that are defined in the child's liveout set but not in the child's varkill set
+        to the live out set of the parent node
     */
     for (const std::string &cur_var : child_node.m_live_out)
     {
@@ -458,6 +505,8 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
 {
 
   std::vector<std::string> asm_vec;
+
+  CFG_node tmp_node(0, 0);
 
   auto write_to_file = [&](std::ofstream &file, std::vector<std::string> &asm_list, std::string delim = "\t")
   {
@@ -490,11 +539,17 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     break;
   case Three_addr_OP::SAVE_REGS:
     mark_in_use_regs();
+    /*  
+        Only push registers onto the stack if those registers aren't part of the calling convention registers
+        LOAD_ARG takes care of pushing all calling convention args onto the stack
+    */
     for (x86_Register cur_reg : m_caller_saved_regs)
     {
-      asm_vec.push_back("push " + x86_Register_to_string(cur_reg));
+      if (find(m_calling_convention_regs.begin(), m_calling_convention_regs.end(), cur_reg) == m_calling_convention_regs.end())
+      {
+        asm_vec.push_back("push " + x86_Register_to_string(cur_reg));
+      }
     }
-    mark_func_arg_regs();
     break;
   case Three_addr_OP::RESTORE_REGS:
     for (auto rev_it = m_caller_saved_regs.rbegin(); rev_it != m_caller_saved_regs.rend(); rev_it++)
@@ -505,7 +560,19 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     m_calling_vec_index = 0;
     break;
   case Three_addr_OP::LOAD_ARG:
-    /*  Save register if register is in use */
+    /*  
+        If reg_1 is in use, need to push it onto the stack, then move the value from reg_1 to the reigster 
+        specified by the calling convention. If reg_1 is already in the correct register specified by 
+        the calling convention, we can instead save reg_1 and increment m_calling_vec_index.
+    */
+    if (reg_1.value() == m_calling_convention_regs.at(m_calling_vec_index))
+    {
+      asm_vec.push_back("push " + x86_Register_to_string(reg_1.value()));
+      m_caller_saved_regs.push_back(reg_1.value());
+      m_calling_vec_index++;
+      break;
+    }
+
     if (!m_register_free_status.at(static_cast<int>(m_calling_convention_regs.at(m_calling_vec_index))))
     {
       asm_vec.push_back("push " + x86_Register_to_string(m_calling_convention_regs.at(m_calling_vec_index)));
@@ -525,10 +592,10 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     asm_vec.push_back(jmp_target);
     break;
   case Three_addr_OP::LOAD:
-    asm_vec.push_back("mov (%rbp," + x86_Register_to_string(reg_1.value()) + ",1), " + x86_Register_to_string(result_reg.value()));
+    asm_vec.push_back("mov (" + x86_Register_to_string(reg_1.value()) + "), " + x86_Register_to_string(result_reg.value()));
     break;
   case Three_addr_OP::STORE:
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", (%rbp," + x86_Register_to_string(reg_1.value()) + ",1)");
+    asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", (" + x86_Register_to_string(reg_1.value()) + ")");
     break;
   case Three_addr_OP::ADD:
     asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(result_reg.value()));
@@ -552,13 +619,15 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     {
       reg_1_div = allocate_reg(Three_addr_var(), 0, CFG_node(0, 0), std::vector<three_addr_code_entry>());
       asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_1_div.value()));
-      free(reg_1_div.value(), CFG_node(0, 0));
+      /*  This will always free the variable, since the allocated register is empty */
+      free(reg_1_div.value(), tmp_node);
     }
     else if (reg_2.value() == x86_Register::RDX)
     {
       reg_2_div = allocate_reg(Three_addr_var(), 0, CFG_node(0, 0), std::vector<three_addr_code_entry>());
       asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(reg_2_div.value()));
-      free(reg_2_div.value(), CFG_node(0, 0));
+      /*  This will always free the variable, since the allocated register is empty */
+      free(reg_2_div.value(), tmp_node);
     }
     else if (!m_register_free_status.at(m_last_reg_index) && result_reg.value() != x86_Register::RDX)
     {
@@ -584,7 +653,10 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     }
     break;
   case Three_addr_OP::RET:
-    asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
+    if (reg_1.has_value())
+    {
+      asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + "%rax");
+    }
     asm_vec.push_back("ret");
     break;
   case Three_addr_OP::BIT_AND:
@@ -642,7 +714,7 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
   write_to_file(m_asm_file, asm_vec);
 }
 
-void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
+void Reg_allocator::generate_assembly_from_CFG_node(CFG_node &node,
                                                     std::vector<three_addr_code_entry> &IR_code)
 {
   for (int i = node.m_start_index; i <= node.m_end_index; i++)
@@ -682,6 +754,15 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
       }
     }
 
+    /*  
+        Variables need to be saved to memory before the jmp instruction is taken, and save_live_out_vars()
+        is called at the end of the loop, which would be too late for memory to be saved
+    */
+    if (cur_op == Three_addr_OP::UNCOND_J || cur_op == Three_addr_OP::NEQUAL_J || cur_op == Three_addr_OP::EQUAL_J)
+    {
+      save_live_out_vars(node);
+    }
+
     generate_asm_line(reg_result, cur_op, reg_1, reg_2, jmp_target);
 
     /*  
@@ -689,7 +770,7 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
         variable to the index at which it occurs next 
     */
     auto update_or_free_reg = [this](std::optional<x86_Register> &reg, Three_addr_var &var,
-                                     const CFG_node &node, int start_index, std::vector<three_addr_code_entry> &IR_code)
+                                     CFG_node &node, int start_index, std::vector<three_addr_code_entry> &IR_code)
     {
       if (reg.has_value())
       {
@@ -714,19 +795,27 @@ void Reg_allocator::generate_assembly_from_CFG_node(const CFG_node &node,
   save_live_out_vars(node);
 }
 
-void Reg_allocator::save_live_out_vars(const CFG_node &node)
+void Reg_allocator::save_live_out_vars(CFG_node &node)
 {
   for (const std::string &cur_live_out : node.m_live_out)
   {
     for (register_entry &cur_reg_entry : m_allocated_reg_data)
     {
-      if (reg_entry_var(cur_reg_entry).is_string() && reg_entry_var(cur_reg_entry).to_string() == cur_live_out)
+      /*  
+          The only time we don't need to save a variable to liveout is if it's an array variable that's 
+          local to the current function, since array values are always written to memory directly
+      */
+      if (reg_entry_var(cur_reg_entry).is_var() && reg_entry_var(cur_reg_entry).to_string() == cur_live_out)
       {
         store_reg(reg_entry_reg(cur_reg_entry));
-        free(reg_entry_reg(cur_reg_entry), node);
       }
     }
   }
+  /*  
+      Each node is only processed once. Clearing the node at the end prevents the variables from being
+      saved to memory again once generate_assembly_from_CFG finishes running
+  */
+  node.m_live_out.clear();
 }
 
 std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated,
@@ -759,7 +848,7 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
 {
 
   /*  Load variable into register */
-  if (var_to_be_allocated.is_string())
+  if (var_to_be_allocated.is_scalar_var())
   {
     std::string source_reg_str = x86_Register_to_string(free_reg);
     std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
@@ -768,9 +857,23 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
   }
   else if (var_to_be_allocated.is_array())
   {
-    std::string var_offset_str =
-        std::to_string(m_prog_sym_table.get_var_offset(var_to_be_allocated.to_string()).value());
-    m_asm_file << "\tmov $" << var_offset_str << ", " << x86_Register_to_string(free_reg) << std::endl;
+    std::vector<std::string> func_args = m_prog_sym_table.get_cur_func_args();
+
+    /*  If array is a function arg, load base addr from memory into register */
+    if (find(func_args.begin(), func_args.end(), var_to_be_allocated.to_string()) != func_args.end())
+    {
+      std::string source_reg_str = x86_Register_to_string(free_reg);
+      std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
+      m_asm_file << "\tmov " << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
+    }
+    /*  If array isn't a function arg, calculate base addr using offset from %rbp */
+    else
+    {
+      std::string var_offset_str =
+          std::to_string(m_prog_sym_table.get_var_offset(var_to_be_allocated.to_string()).value());
+      m_asm_file << "\tmov %rbp, " << x86_Register_to_string(free_reg) << std::endl;
+      m_asm_file << "\tadd $" << var_offset_str << ", " << x86_Register_to_string(free_reg) << std::endl;
+    }
   }
   else
   {
@@ -817,8 +920,11 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
 
     register_entry &reg_entry_being_freed = m_allocated_reg_data.at(next_furthest_use_index);
 
-    /*  Only write to memory if register has a temporary variable that is used later in this block */
-    if (reg_entry_var(reg_entry_being_freed).is_string() &&
+    /*  
+        Only write to memory if register has a temporary variable that is used later in this block. Arrays
+        are always written to memory directly, so no need to write an array being freed to memory
+    */
+    if (reg_entry_var(reg_entry_being_freed).is_scalar_var() &&
         dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node, IR_code))
     {
       store_reg(reg_entry_reg(reg_entry_being_freed));
@@ -837,7 +943,7 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
   }
 }
 
-void Reg_allocator::free(x86_Register reg_to_free, const CFG_node &node)
+void Reg_allocator::free(x86_Register reg_to_free, CFG_node &node)
 {
 
   int reg_index = static_cast<int>(reg_to_free);
@@ -849,7 +955,7 @@ void Reg_allocator::free(x86_Register reg_to_free, const CFG_node &node)
 
     /* Write variable in register to memory if that variable is in the live out set of node */
     Three_addr_var &var_being_freed = reg_entry_var(m_allocated_reg_data.at(reg_index));
-    if (var_being_freed.is_string() && node.m_live_out.count(var_being_freed.to_string()) != 0)
+    if (var_being_freed.is_scalar_var() && node.m_live_out.count(var_being_freed.to_string()) != 0)
     {
       store_reg(reg_to_free);
     }

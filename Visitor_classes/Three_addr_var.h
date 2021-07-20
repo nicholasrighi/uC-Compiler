@@ -38,8 +38,11 @@ public:
   /* determine if this object has valid state, which means it either holds a constant or a temporary variable name */
   bool is_valid() const;
 
+  /*  returns true if the Three_addr_var holds a scalar or array variable, false otherwise */
+  bool is_var() const;
+
   /*  returns true if the Three_addr_var holds a scalar variable, false otherwise */
-  bool is_string() const;
+  bool is_scalar_var() const;
 
   /*  returns true if the Three_addr_var contains an array, false otherwise */
   bool is_array() const;

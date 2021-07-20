@@ -32,30 +32,42 @@ std::string Three_addr_var::to_string() const
   }
 }
 
-/* determine if this object has valid state, which means it either holds a constant or a temporary variable name */
+/* 
+  determine if this object has valid state, which means it either holds a constant or a temporary 
+  variable name 
+*/
 bool Three_addr_var::is_valid() const
 {
   return m_var_type != Three_addr_var_type::EMPTY;
 }
 
-bool Three_addr_var::is_string() const
+bool Three_addr_var::is_var() const
+{
+  return m_var_type == Three_addr_var_type::SCALAR_VAR || m_var_type == Three_addr_var_type::ARRAY;
+}
+
+bool Three_addr_var::is_scalar_var() const
 {
   return m_var_type == Three_addr_var_type::SCALAR_VAR;
 }
 
-bool Three_addr_var::is_raw_str() const {
+bool Three_addr_var::is_raw_str() const
+{
   return m_var_type == Three_addr_var_type::RAW_STR;
 }
 
-bool Three_addr_var::is_label() const {
+bool Three_addr_var::is_label() const
+{
   return m_var_type == Three_addr_var_type::LABEL;
 }
 
-bool Three_addr_var::is_const() const {
+bool Three_addr_var::is_const() const
+{
   return m_var_type == Three_addr_var_type::CONSTANT;
 }
 
-bool Three_addr_var::is_array() const {
+bool Three_addr_var::is_array() const
+{
   return m_var_type == Three_addr_var_type::ARRAY;
 }
 
@@ -65,13 +77,13 @@ bool Three_addr_var::operator==(const Three_addr_var &other) const
   {
     return false;
   }
-  if (this->is_string())
+  if (this->is_scalar_var())
   {
-    return other.is_string() && (m_temp_var == other.m_temp_var);
+    return other.is_scalar_var() && (m_temp_var == other.m_temp_var);
   }
   else
   {
-    return !other.is_string() && (m_constant == other.m_constant);
+    return !other.is_scalar_var() && (m_constant == other.m_constant);
   }
 }
 

@@ -188,7 +188,12 @@ void Print_AST_visitor::dispatch(Return_dec &node)
 
   std::cout << "Returning:" << std::endl;
 
-  node.m_return_value->accept(*this);
+  if (node.m_return_value != nullptr)
+  {
+    node.m_return_value->accept(*this);
+  } else {
+    std::cout << "Return stmt with no body";
+  }
 
   remove_indent_level();
 }

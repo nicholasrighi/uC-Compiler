@@ -133,14 +133,14 @@ private:
 
   /*  Generates assembly based on the CFG node and the LiveOut set of each basic
    * block */
-  void generate_assembly_from_CFG_node(const CFG_node &node,
+  void generate_assembly_from_CFG_node(CFG_node &node,
                                        std::vector<three_addr_code_entry> &IR_code);
 
   /*
       Saves all variables in node's live out set that reside in registers to memory
       Then frees those registers
   */
-  void save_live_out_vars(const CFG_node &node);
+  void save_live_out_vars(CFG_node &node);
 
   /*  Generates a single line of assembly using up to three registers and one op code */
   void generate_asm_line(std::optional<x86_Register>,
@@ -176,7 +176,7 @@ private:
       putting the register onto m_free_reg_stack
   */
   void free(x86_Register reg_to_free,
-            const CFG_node &node);
+            CFG_node &node);
 
   /*
     Stores the value allocated in var_to_free to the offset specified in the symbol table. If the variable

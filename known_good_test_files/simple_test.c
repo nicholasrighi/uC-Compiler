@@ -1,8 +1,22 @@
-int factorial(int n) {
-	if (n <= 1) {
+int factorial(int n)
+{
+	if (n <= 1)
+	{
 		return 1;
 	}
-	return n * factorial(n-1);
+	return n * factorial(n - 1);
+}
+
+void factorial_fill(int a[], int n)
+{
+	int i;
+	i = 0;
+	while (i < n)
+	{
+		a[i] = factorial(i);
+		i = i + 1;
+	}
+	return;
 }
 
 int main(void)
@@ -10,18 +24,18 @@ int main(void)
 	int x[6];
 	int sum;
 	int i;
+	int n;
 
-	i = 0;
+	n = 6;
 	sum = 0;
+	i = 0;
 
-	while (i < 6) {
-		x[i] = factorial(i);
+	factorial_fill(x, n);
+
+	while (i < n)
+	{
 		sum = sum + x[i];
 		i = i + 1;
-	}
-
-	if (sum > 37) {
-		return 100;
 	}
 
 	return sum;

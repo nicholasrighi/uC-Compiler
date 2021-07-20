@@ -6,7 +6,7 @@
 #include <iostream>
 #include <algorithm>
 
-Function_symbol_table::Function_symbol_table()
+Function_symbol_table::Function_symbol_table(std::ofstream &debug_file) : m_debug_file(debug_file)
 {
   m_chained_sym_table.push_back(std::unordered_map<std::string, sym_table_entry>{});
 }
@@ -14,6 +14,8 @@ Function_symbol_table::Function_symbol_table()
 bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_storage var_storage)
 {
   sym_table_entry sym_entry(var_dec, var_storage, m_local_var_offset);
+
+  /*  Check that variable wasn't already declared in the current scope */
   if (m_chained_sym_table.at(m_table_level).count(name) >= 1 || m_func_arg_table.count(name) >= 1)
   {
     return false;
@@ -29,7 +31,8 @@ bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_stor
     m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
   }
 
-  if (var_dec != nullptr && var_dec->m_obj_type == Object_type::ARRAY)
+  /*  If an array is declared in a function argument, we only need to store its address as a local variable */
+  if (var_dec != nullptr && var_dec->m_obj_type == Object_type::ARRAY && var_storage != Var_storage::REGISTER)
   {
     m_local_var_offset -= ((dynamic_cast<Array_dec *>(var_dec))->m_array_size) * 8;
   }
@@ -80,7 +83,8 @@ std::optional<int> Function_symbol_table::get_var_offset(std::string name)
   return std::nullopt;
 }
 
-int Function_symbol_table::get_rsp_offset() {
+int Function_symbol_table::get_rsp_offset()
+{
   return m_local_var_offset + 8;
 }
 
@@ -90,7 +94,9 @@ void Function_symbol_table::print_sym_table()
   {
     for (auto &symbols : tables)
     {
-      std::cout << "Variable " << symbols.first << " is defined" << std::endl;
+      int offset = std::get<2>(symbols.second);
+      m_debug_file << "\tVariable " << symbols.first << " is defined at offset "
+                   << std::to_string(offset) << std::endl;
     }
   }
 }

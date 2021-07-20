@@ -100,9 +100,10 @@ int main(int argc, char **argv)
 
   fclose(yyin);
 
-  Program_symbol_table prog_sym_table;
   std::vector<std::vector<three_addr_code_entry>> intermediate_code;
   std::ofstream debug_log(input_file_name + "_debug_log", std::ofstream::trunc);
+
+  Program_symbol_table prog_sym_table(debug_log);
 
   /*  Visitors for generating Three_addr_code and type checking input */
   Print_AST_visitor print_visitor;
@@ -119,13 +120,7 @@ int main(int argc, char **argv)
     root->accept(print_visitor);
   }
 
-  /*  Need to cll dec_visitor before printing symbol table to ensure symbol table is populated */
   root->accept(dec_visitor);
-
-  if (print_sym_table)
-  {
-    prog_sym_table.print_prog_sym_table();
-  }
 
   /*  Need to reset symbol table to ensure that future visitors start at the least nested scope */
   prog_sym_table.reset_sym_table_scopes();
@@ -154,4 +149,9 @@ int main(int argc, char **argv)
 
   IR_generator.print_IR_code();
   reg_allocator.generate_asm_file();
+
+  if (print_sym_table)
+  {
+    prog_sym_table.print_prog_sym_table();
+  }
 }

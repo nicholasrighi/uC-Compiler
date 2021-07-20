@@ -4,7 +4,8 @@
 /*  Implements */
 #include "Program_symbol_table.h"
 
-Program_symbol_table::Program_symbol_table() : m_cur_func_iter(m_function_sym_table.end())
+Program_symbol_table::Program_symbol_table(std::ofstream& debug_file) 
+: m_debug_file(debug_file), m_cur_func_iter(m_function_sym_table.end()), m_global_sym_table(debug_file)
 {
 }
 
@@ -89,7 +90,7 @@ bool Program_symbol_table::add_function(std::string func_name)
 {
 
   /*  Insert returns <iterator, bool>, where bool determines if insert succeded */
-  if (m_function_sym_table.insert({func_name, Function_symbol_table{}}).second)
+  if (m_function_sym_table.insert({func_name, Function_symbol_table(m_debug_file)}).second)
   {
     m_cur_func_iter = m_function_sym_table.find(func_name);
     return true;
@@ -126,14 +127,15 @@ bool Program_symbol_table::increment_scope_of_cur_fun_sym_table() {
 
 void Program_symbol_table::print_prog_sym_table()
 {
-  std::cout << "global variables are" << std::endl;
+  m_debug_file << "global variables are" << std::endl;
   m_global_sym_table.print_sym_table();
 
   for (auto &table : m_function_sym_table)
   {
-    std::cout << "Function " << table.first << " has symbol table " << std::endl;
+    m_debug_file << "Function " << table.first << " has symbol table " << std::endl;
     table.second.print_sym_table();
   }
+  m_debug_file << std::endl;
 }
 
 std::vector<std::string> Program_symbol_table::get_cur_func_args() {

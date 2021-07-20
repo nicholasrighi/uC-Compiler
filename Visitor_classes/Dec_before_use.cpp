@@ -51,7 +51,15 @@ void Dec_before_use::dispatch(Array_dec &node)
     {
         if (!m_prog_sym_table.add_global_var(node.get_name(), &node))
         {
-            std::cout << "Redeclared global array " << node.get_name() << std::endl;
+            std::cout << "Redeclared global variable " << node.get_name() << std::endl;
+            m_parse_flag = false;
+        }
+    }
+    else if (m_func_args)
+    {
+        if (!m_prog_sym_table.add_register_var(node.get_name(), &node))
+        {
+            std::cout << "Redeclared global variable " << node.get_name() << std::endl;
             m_parse_flag = false;
         }
     }
@@ -59,7 +67,7 @@ void Dec_before_use::dispatch(Array_dec &node)
     {
         if (!m_prog_sym_table.add_local_var(node.get_name(), &node))
         {
-            std::cout << "Redeclared local array " << node.get_name() << std::endl;
+            std::cout << "Redeclared local variable " << node.get_name() << std::endl;
             m_parse_flag = false;
         }
     }
@@ -165,7 +173,10 @@ void Dec_before_use::dispatch(Number &node)
 */
 void Dec_before_use::dispatch(Return_dec &node)
 {
-    node.m_return_value->accept(*this);
+    if (node.m_return_value != nullptr)
+    {
+        node.m_return_value->accept(*this);
+    }
 }
 
 /*

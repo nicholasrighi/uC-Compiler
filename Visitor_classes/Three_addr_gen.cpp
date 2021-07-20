@@ -243,10 +243,8 @@ Three_addr_gen::Three_addr_gen(std::ofstream &debug_log, Program_symbol_table &s
 }
 
 /*
-    Computes IR code for address of array element, DOES NOT load the value at the access address into memory.
-    This is because expressions of the form a[x] = a[y] + z require a[y] to be loaded into memory but requires
-    a[x] to be stored to memory. So the parent node needs to determine if we should load from or store to the 
-    address that this dispatch method calculates
+  Loads the value specified by the array access into a register, returns the temporary variable assigned to 
+  the newly loaded variable
 */
 void Three_addr_gen::dispatch(Array_access &node)
 {
@@ -263,10 +261,13 @@ void Three_addr_gen::dispatch(Array_access &node)
   three_addr_code_entry neg_access_inst =
       std::make_tuple(neg_access_temp, Three_addr_OP::SUB, Three_addr_var(0), scaled_access_temp);
 
+  /*  Calculate final address of value to load */
   Three_addr_var final_addr_temp(gen_temp());
+  Three_addr_var array_addr(node.m_var->m_name, Three_addr_var_type::ARRAY);
   three_addr_code_entry final_addr_inst =
-      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, Three_addr_var(node.m_var->m_name, Three_addr_var_type::ARRAY), neg_access_temp);
+      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, array_addr, neg_access_temp);
 
+  /*  Load value into a new temporary variable */
   Three_addr_var loaded_value_temp(gen_temp());
   three_addr_code_entry loaded_value_inst =
       std::make_tuple(loaded_value_temp, Three_addr_OP::LOAD, final_addr_temp, Three_addr_var());
@@ -282,11 +283,10 @@ void Three_addr_gen::dispatch(Array_access &node)
 }
 
 /* 
-  Array declerations don't require creating any temporary variables, so function doesn't do anything
+  Move memory address where array starts into temporary
 */
 void Three_addr_gen::dispatch(Array_dec &node)
 {
-  /* do nothing */
 }
 
 /*
@@ -528,13 +528,22 @@ void Three_addr_gen::dispatch(Number &node)
 
 void Three_addr_gen::dispatch(Return_dec &node)
 {
-  node.m_return_value->accept(*this);
+  if (node.m_return_value != nullptr)
+  {
+    node.m_return_value->accept(*this);
 
-  Three_addr_var ret_tmp(gen_temp());
-  m_intermediate_rep.back().push_back(std::make_tuple(ret_tmp, Three_addr_OP::ASSIGN, m_last_entry, Three_addr_var()));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, ret_tmp, Three_addr_var()));
+    Three_addr_var ret_tmp(gen_temp());
+    m_intermediate_rep.back().push_back(std::make_tuple(ret_tmp, Three_addr_OP::ASSIGN, m_last_entry, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, ret_tmp, Three_addr_var()));
+  }
+  else
+  {
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, Three_addr_var(), Three_addr_var()));
+  }
 }
 
 void Three_addr_gen::dispatch(Stmt_dec &node)
@@ -557,7 +566,20 @@ void Three_addr_gen::dispatch(Var_dec &node)
 /*  Assigns m_last_entry to the variable being referenced */
 void Three_addr_gen::dispatch(Var_ref &node)
 {
-  m_last_entry = Three_addr_var(node.m_name);
+  Object_type var_type = m_sym_table.get_var_dec(node.m_name).value()->m_obj_type;
+
+  if (var_type == Object_type::SCALAR)
+  {
+    m_last_entry = Three_addr_var(node.m_name);
+  }
+  else if (var_type == Object_type::ARRAY)
+  {
+    Three_addr_var final_addr_temp(gen_temp());
+    three_addr_code_entry final_addr_inst =
+        std::make_tuple(final_addr_temp, Three_addr_OP::ADD, Three_addr_var(node.m_name, Three_addr_var_type::ARRAY), Three_addr_var(0));
+    m_intermediate_rep.back().push_back(final_addr_inst);
+    m_last_entry = final_addr_temp;
+  }
 }
 
 void Three_addr_gen::dispatch(While_dec &node)

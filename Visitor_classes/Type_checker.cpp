@@ -47,6 +47,7 @@ void Type_checker::dispatch(Array_dec &node)
     std::cout << "Error, array '" << node.m_var->m_name << "' declared as VOID" << std::endl;
     m_parse_flag = false;
   }
+  m_ret_type = node.m_var_type;
 }
 
 /*
@@ -208,7 +209,12 @@ void Type_checker::dispatch(Number &node)
 */
 void Type_checker::dispatch(Return_dec &node)
 {
-  node.m_return_value->accept(*this);
+  if (node.m_return_value != nullptr)
+  {
+    node.m_return_value->accept(*this);
+  } else {
+    m_ret_type = Ret_type::VOID; 
+  }
 
   /* check that return type matches the function's return type*/
   if (m_cur_func_ret_type != m_ret_type)
