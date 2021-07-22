@@ -95,13 +95,17 @@ void Reg_allocator::generate_asm_file()
           correct values are loaded from memory, regardless of where the 
           control flow was before the current basic block
       */
-      reset_registers();
       auto &CFG_node = m_cfg_graph.at(i);
       if (i == 0)
       {
         m_calling_vec_index = 0;
         setup_initial_regs(CFG_node.first, cur_IR_code);
       }
+      else
+      {
+        reset_registers();
+      }
+
       if (!CFG_node.second)
       {
         generate_assembly_from_CFG_node(CFG_node.first, cur_IR_code);
@@ -146,24 +150,23 @@ void Reg_allocator::print_register_contents()
 
 void Reg_allocator::mark_in_use_regs()
 {
-  for (int i = 0; i < m_allocated_reg_data.size(); i++)
+  /*  Mark in use registers that are part of the calling convention but aren't used for this function call */
+  for (int i = m_calling_vec_index; i < m_calling_convention_regs.size(); i++)
   {
-    /*  Only save register if register is in use and register doesn't hold a function argument */
-    if (!m_register_free_status.at(i) &&
-        find(m_calling_convention_regs.begin(), m_calling_convention_regs.end(), static_cast<x86_Register>(i)) == m_calling_convention_regs.end())
+    int cur_reg_as_index = static_cast<int>(m_calling_convention_regs.at(i));
+    if (!m_register_free_status.at(cur_reg_as_index))
     {
-      m_caller_saved_regs.push_back(static_cast<x86_Register>(i));
+      m_general_saved_regs.push_back(static_cast<x86_Register>(cur_reg_as_index));
     }
   }
-}
 
-void Reg_allocator::mark_func_arg_regs()
-{
-  auto end_of_args_iter = m_calling_convention_regs.begin() + m_prog_sym_table.get_cur_func_args().size();
-
-  for (end_of_args_iter--; end_of_args_iter >= m_calling_convention_regs.begin(); end_of_args_iter--)
+  /*  Mark in use registers that aren't part of the calling convention */
+  for (x86_Register cur_reg : m_regs_not_containing_args)
   {
-    m_caller_saved_regs.insert(m_caller_saved_regs.begin(), *end_of_args_iter);
+    if (!m_register_free_status.at(static_cast<int>(cur_reg)))
+    {
+      m_general_saved_regs.push_back(cur_reg);
+    }
   }
 }
 
@@ -346,7 +349,7 @@ void Reg_allocator::reset_registers()
   /*  Add all registers to free register stack */
   m_free_reg_stack = {};
 
-  for (int i = 0; i < m_last_reg_index; i++)
+  for (int i = 0; i <= m_last_reg_index; i++)
   {
     m_free_reg_stack.push(static_cast<x86_Register>(i));
   }
@@ -539,31 +542,31 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     break;
   case Three_addr_OP::SAVE_REGS:
     mark_in_use_regs();
-    /*  
-        Only push registers onto the stack if those registers aren't part of the calling convention registers
-        LOAD_ARG takes care of pushing all calling convention args onto the stack
-    */
-    for (x86_Register cur_reg : m_caller_saved_regs)
+    for (x86_Register cur_reg : m_general_saved_regs)
     {
-      if (find(m_calling_convention_regs.begin(), m_calling_convention_regs.end(), cur_reg) == m_calling_convention_regs.end())
-      {
-        asm_vec.push_back("push " + x86_Register_to_string(cur_reg));
-      }
+      asm_vec.push_back("push " + x86_Register_to_string(cur_reg));
     }
     break;
   case Three_addr_OP::RESTORE_REGS:
+    /*  General regs are saved last, so they need to be restored first */
+    for (auto rev_it = m_general_saved_regs.rbegin(); rev_it != m_general_saved_regs.rend(); rev_it++)
+    {
+      asm_vec.push_back("pop " + x86_Register_to_string(*rev_it));
+    }
+    /*  Register args are saved first, so restored last */
     for (auto rev_it = m_caller_saved_regs.rbegin(); rev_it != m_caller_saved_regs.rend(); rev_it++)
     {
       asm_vec.push_back("pop " + x86_Register_to_string(*rev_it));
     }
     m_caller_saved_regs.clear();
+    m_general_saved_regs.clear();
     m_calling_vec_index = 0;
     break;
   case Three_addr_OP::LOAD_ARG:
     /*  
-        If reg_1 is in use, need to push it onto the stack, then move the value from reg_1 to the reigster 
-        specified by the calling convention. If reg_1 is already in the correct register specified by 
-        the calling convention, we can instead save reg_1 and increment m_calling_vec_index.
+        If the register required for the next function argument is in use, need to push that register onto 
+        the stack, then move the value from reg_1 to the calling convention register. If reg_1 is the correct 
+        register specified by the calling convention, instead push reg_1 and increment m_calling_vec_index.
     */
     if (reg_1.value() == m_calling_convention_regs.at(m_calling_vec_index))
     {
@@ -617,14 +620,14 @@ void Reg_allocator::generate_asm_line(std::optional<x86_Register> result_reg,
     }
     else if (reg_1.value() == x86_Register::RDX)
     {
-      reg_1_div = allocate_reg(Three_addr_var(), 0, CFG_node(0, 0), std::vector<three_addr_code_entry>());
+      reg_1_div = allocate_reg(Three_addr_var());
       asm_vec.push_back("mov " + x86_Register_to_string(reg_1.value()) + ", " + x86_Register_to_string(reg_1_div.value()));
       /*  This will always free the variable, since the allocated register is empty */
       free(reg_1_div.value(), tmp_node);
     }
     else if (reg_2.value() == x86_Register::RDX)
     {
-      reg_2_div = allocate_reg(Three_addr_var(), 0, CFG_node(0, 0), std::vector<three_addr_code_entry>());
+      reg_2_div = allocate_reg(Three_addr_var());
       asm_vec.push_back("mov " + x86_Register_to_string(reg_2.value()) + ", " + x86_Register_to_string(reg_2_div.value()));
       /*  This will always free the variable, since the allocated register is empty */
       free(reg_2_div.value(), tmp_node);
@@ -732,13 +735,13 @@ void Reg_allocator::generate_assembly_from_CFG_node(CFG_node &node,
 
     if (var_1.is_valid())
     {
-      reg_1 = ensure(var_1, i + 1, node, IR_code);
+      reg_1 = ensure(var_1);
       jmp_target = var_1.to_string();
     }
 
     if (var_2.is_valid())
     {
-      reg_2 = ensure(var_2, i + 1, node, IR_code);
+      reg_2 = ensure(var_2);
     }
 
     if (var_result.is_valid())
@@ -750,7 +753,7 @@ void Reg_allocator::generate_assembly_from_CFG_node(CFG_node &node,
       }
       else
       {
-        reg_result = allocate_reg(var_result, i + 1, node, IR_code);
+        reg_result = allocate_reg(var_result);
       }
     }
 
@@ -818,9 +821,7 @@ void Reg_allocator::save_live_out_vars(CFG_node &node)
   node.m_live_out.clear();
 }
 
-std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated,
-                                                  int start_index, const CFG_node &node,
-                                                  std::vector<three_addr_code_entry> &IR_code)
+std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_be_allocated)
 {
   /* If the var_to_be_allocated doesn't need a register, return an emtpy optional */
   if (var_to_be_allocated.is_raw_str() || var_to_be_allocated.is_label())
@@ -836,7 +837,7 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
   }
 
   /*  Allocate register if the value we need isn't contained inside a register */
-  x86_Register newly_freed_register = allocate_reg(var_to_be_allocated, start_index, node, IR_code);
+  x86_Register newly_freed_register = allocate_reg(var_to_be_allocated);
 
   /*  Loads value from var_to_be_allocated into newly_freed_register */
   load_reg(var_to_be_allocated, newly_freed_register);
@@ -882,10 +883,7 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
   }
 }
 
-x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocated,
-                                         int start_index,
-                                         const CFG_node &node,
-                                         const std::vector<three_addr_code_entry> &IR_code)
+x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocated)
 {
   if (m_free_reg_stack.size() > 0)
   {
@@ -924,8 +922,7 @@ x86_Register Reg_allocator::allocate_reg(const Three_addr_var &var_to_be_allocat
         Only write to memory if register has a temporary variable that is used later in this block. Arrays
         are always written to memory directly, so no need to write an array being freed to memory
     */
-    if (reg_entry_var(reg_entry_being_freed).is_scalar_var() &&
-        dist_to_next_var_occurance(reg_entry_var(reg_entry_being_freed), start_index, node, IR_code))
+    if (reg_entry_var(reg_entry_being_freed).is_scalar_var())
     {
       store_reg(reg_entry_reg(reg_entry_being_freed));
     }

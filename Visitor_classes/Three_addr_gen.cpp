@@ -267,17 +267,22 @@ void Three_addr_gen::dispatch(Array_access &node)
   three_addr_code_entry final_addr_inst =
       std::make_tuple(final_addr_temp, Three_addr_OP::ADD, array_addr, neg_access_temp);
 
-  /*  Load value into a new temporary variable */
-  Three_addr_var loaded_value_temp(gen_temp());
-  three_addr_code_entry loaded_value_inst =
-      std::make_tuple(loaded_value_temp, Three_addr_OP::LOAD, final_addr_temp, Three_addr_var());
-
-  m_last_entry = loaded_value_temp;
-
   m_intermediate_rep.back().push_back(scaled_access_inst);
   m_intermediate_rep.back().push_back(neg_access_inst);
   m_intermediate_rep.back().push_back(final_addr_inst);
-  m_intermediate_rep.back().push_back(loaded_value_inst);
+
+  m_last_entry = final_addr_temp;
+
+  /*  Only load array value if the parent expression needs the value */
+  if (m_load_array_value)
+  {
+    Three_addr_var loaded_value_temp(gen_temp());
+    three_addr_code_entry loaded_value_inst =
+        std::make_tuple(loaded_value_temp, Three_addr_OP::LOAD, final_addr_temp, Three_addr_var());
+
+    m_last_entry = loaded_value_temp;
+    m_intermediate_rep.back().push_back(loaded_value_inst);
+  }
 
   m_child_is_array_dec = true;
 }
@@ -295,18 +300,74 @@ void Three_addr_gen::dispatch(Array_dec &node)
 */
 void Three_addr_gen::dispatch(Binop_dec &node)
 {
-  node.m_right->accept(*this);
-  Three_addr_var right_temp = m_last_entry;
-  m_child_is_array_dec = false;
-
   /*  
-      Need to visit left side second to ensure that the '=' operator functions correctly when the left side is 
-      an array
+      The = operator wants to store the right hand side to the address of the left sub tree (if the left
+      sub tree is an array), so we record that fact here so a left child Array_access node doesn't 
+      load the value into memory 
   */
+  if (node.m_op == "=")
+  {
+    m_load_array_value = false;
+  }
+  else
+  {
+    m_load_array_value = true;
+  }
+
+  m_child_is_array_dec = false;
   node.m_left->accept(*this);
   Three_addr_var left_temp = m_last_entry;
   bool left_child_is_array = m_child_is_array_dec;
-  m_child_is_array_dec = false;
+
+  Three_addr_var right_temp;
+  m_load_array_value = true;
+
+  /*  || and && handled before the RHS of the expression is evaulated to guarantee short circuit evaluation */
+  if (node.m_op == "||")
+  {
+    Three_addr_var either_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var neither_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var return_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var result_temp = gen_temp();
+
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, either_arg_is_one, Three_addr_var()));
+    node.m_right->accept(*this);
+    right_temp = m_last_entry;
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, neither_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, either_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(1), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, return_label, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, neither_arg_is_one, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(0), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, return_label, Three_addr_var()));
+    m_last_entry = result_temp;
+  }
+  else if (node.m_op == "&&")
+  {
+    Three_addr_var either_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var neither_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
+    Three_addr_var result_temp = gen_temp();
+
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, either_arg_is_zero, Three_addr_var()));
+    node.m_right->accept(*this);
+    right_temp = m_last_entry;
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, either_arg_is_zero, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(1), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, neither_arg_is_zero, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, either_arg_is_zero, Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(0), Three_addr_var()));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, neither_arg_is_zero, Three_addr_var()));
+    m_last_entry = result_temp;
+  }
+  else
+  {
+    node.m_right->accept(*this);
+    right_temp = m_last_entry;
+  }
 
   /* Map operators that have corresponding machine instructions */
   if (node.m_op == "+")
@@ -368,9 +429,7 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     */
     if (left_child_is_array)
     {
-      m_intermediate_rep.back().pop_back();
-      Three_addr_var &store_addr_tmp = std::get<0>(m_intermediate_rep.back().back());
-      m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::STORE, store_addr_tmp, right_temp));
+      m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::STORE, left_temp, right_temp));
     }
     else
     {
@@ -389,42 +448,6 @@ void Three_addr_gen::dispatch(Binop_dec &node)
     Three_addr_var new_temp = gen_temp();
     m_intermediate_rep.back().push_back(std::make_tuple(new_temp, Three_addr_OP::NOT_EQUALITY, left_temp, right_temp));
     m_last_entry = new_temp;
-  }
-  else if (node.m_op == "&&")
-  {
-    Three_addr_var either_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
-    Three_addr_var neither_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
-    Three_addr_var result_temp = gen_temp();
-
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, either_arg_is_zero, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, either_arg_is_zero, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(1), Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, neither_arg_is_zero, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, either_arg_is_zero, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(0), Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, neither_arg_is_zero, Three_addr_var()));
-    m_last_entry = result_temp;
-  }
-  else if (node.m_op == "||")
-  {
-    Three_addr_var either_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
-    Three_addr_var neither_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
-    Three_addr_var return_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
-    Three_addr_var result_temp = gen_temp();
-
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), left_temp));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, either_arg_is_one, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), right_temp));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, neither_arg_is_one, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, either_arg_is_one, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(1), Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::UNCOND_J, return_label, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, neither_arg_is_one, Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(result_temp, Three_addr_OP::ASSIGN, Three_addr_var(0), Three_addr_var()));
-    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, return_label, Three_addr_var()));
-    m_last_entry = result_temp;
   }
 }
 

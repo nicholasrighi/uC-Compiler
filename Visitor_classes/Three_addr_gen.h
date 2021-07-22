@@ -134,4 +134,7 @@ private:
 
   /*  indicates if the immediate left or right child of a Binop node is an array */
   bool m_child_is_array_dec = false;
+
+  /*  Always load an array value except when an array is on the left hand side of an "=" operator */
+  bool m_load_array_value = true;
 };

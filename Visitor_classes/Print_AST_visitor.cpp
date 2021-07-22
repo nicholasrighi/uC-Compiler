@@ -73,7 +73,12 @@ void Print_AST_visitor::dispatch(Binop_dec &node)
 
   std::cout << "Binop with operator " << node.m_op << std::endl;
 
+  insert_indent();
+  std::cout << "left side: " << std::endl;
   node.m_left->accept(*this);
+
+  insert_indent();
+  std::cout << "right side: " << std::endl;
   node.m_right->accept(*this);
 
   remove_indent_level();

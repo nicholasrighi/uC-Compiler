@@ -6,9 +6,12 @@ file_name = "math_test"
 # Returns a set containing num_of_vars unique variable names
 def generate_var_list(num_of_vars):
   var_list = []
-  ascii_num = 97
+  ASCII_cap = 65
+  ASCII_lower_case = 97
+
   for i in range(num_of_vars):
-    var_list.append(chr(ascii_num + i))
+    var_list.append(chr(ASCII_cap + i))
+
 
   return var_list 
 
@@ -33,7 +36,7 @@ def gen_test_file(file_number, num_of_vars):
       math_file.write("\t" + var + " = " + str(random.randrange(1, 10)) + ";\n")
     math_file.write("\tresult = ")
 
-    op_list = [" + ", " - ", " * ", " / ", " & ", " | ", " < ", " > ", " >= ", " <= ", " && ", " || "]
+    op_list = [" + ", " - ", " * ", "/", " & ", " | ", " < ", " > ", " >= ", " <= ", " && ", " || "]
 
     # perform random math operations on all variables
     for var in var_list[:-1]:
@@ -49,5 +52,5 @@ def gen_test_file(file_number, num_of_vars):
 if __name__ == "__main__":
   random.seed(123)
   for i in range(1000):
-    gen_test_file(file_number = i, num_of_vars = 10)
+    gen_test_file(file_number = i, num_of_vars = 14)
 

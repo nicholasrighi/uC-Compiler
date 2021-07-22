@@ -74,12 +74,6 @@ private:
   /*  adds regsiters currently in use to m_caller_saved_regs */
   void mark_in_use_regs();
 
-  /*  
-      adds registers used in function argument, in reverse order (so RDI is at the front of 
-      m_caller_saved_regs), to the front of m_caller_saved_regs
-  */
-  void mark_func_arg_regs();
-
   /*  Allocates function arguments to registers */
   void setup_initial_regs(const CFG_node &node,
                           std::vector<three_addr_code_entry> &IR_code);
@@ -155,10 +149,7 @@ private:
     that now free register. If var_to_be_allocated is a label or a raw string, then
     ensure allocates nothing and returns an empty optional
   */
-  std::optional<x86_Register> ensure(const Three_addr_var &var_to_be_alloced,
-                                     int start_index,
-                                     const CFG_node &node,
-                                     std::vector<three_addr_code_entry> &IR_code);
+  std::optional<x86_Register> ensure(const Three_addr_var &var_to_be_alloced);
 
   /*
      Finds and returns the x86_Register that will be used the furthest in the
@@ -166,10 +157,7 @@ private:
      future, stores that variable to memory. Adds the passed Three_addr_var into
      m_allocated_reg_data
   */
-  x86_Register allocate_reg(const Three_addr_var &var_to_be_allocated,
-                            int start_index,
-                            const CFG_node &node,
-                            const std::vector<three_addr_code_entry> &IR_code);
+  x86_Register allocate_reg(const Three_addr_var &var_to_be_allocated);
 
   /*
       Frees the specified register by setting it to free in m_register_free_status and 
@@ -251,8 +239,11 @@ private:
   /*  Holds free x86 registers */
   std::stack<x86_Register> m_free_reg_stack;
 
-  /*  Holds registers saved before a function call */
+  /*  Holds saved registers that are part of the calling convention before a function call */
   std::vector<x86_Register> m_caller_saved_regs;
+
+  /*  Holds general registers that are saved before a function call */
+  std::vector<x86_Register> m_general_saved_regs;
 
   /*  Registers used by the x86_64 calling convention for passing the first 6 arguments to a function */
   const std::vector<x86_Register> m_calling_convention_regs = {x86_Register::RDI,
