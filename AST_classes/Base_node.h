@@ -10,4 +10,5 @@ class Base_node
 {
 public:
   virtual void accept(Abstract_visitor &visitor) = 0;
+  virtual ~Base_node();
 };
