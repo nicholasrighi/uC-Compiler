@@ -43,27 +43,37 @@ bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_stor
   return true;
 }
 
-std::optional<Var_dec *> Function_symbol_table::get_var_dec(std::string name)
+std::optional<Var_dec *> Function_symbol_table::get_var_dec(const std::string &name)
 {
-  /* only start checking at the currently recorded scope, not the most nested scope */
-  for (int cur_index = m_table_level; cur_index >= 0; cur_index--)
+  std::optional<sym_table_entry> entry = get_sym_table_entry(name);
+  if (entry.has_value())
   {
-    auto &table = m_chained_sym_table.at(cur_index);
-    if (table.count(name) == 1)
-    {
-      return {std::get<0>(table.at(name))};
-    }
+    return std::get<0>(entry.value());
   }
-
-  if (m_func_arg_table.count(name) >= 1)
-  {
-    return {std::get<0>(m_func_arg_table.at(name))};
-  }
-
   return std::nullopt;
 }
 
-std::optional<int> Function_symbol_table::get_var_offset(std::string name)
+std::optional<Var_storage> Function_symbol_table::get_var_storage(const std::string &name)
+{
+  std::optional<sym_table_entry> entry = get_sym_table_entry(name);
+  if (entry.has_value())
+  {
+    return std::get<1>(entry.value());
+  }
+  return std::nullopt;
+}
+
+std::optional<int> Function_symbol_table::get_var_offset(const std::string &name)
+{
+  std::optional<sym_table_entry> entry = get_sym_table_entry(name);
+  if (entry.has_value())
+  {
+    return std::get<2>(entry.value());
+  }
+  return std::nullopt;
+}
+
+std::optional<sym_table_entry> Function_symbol_table::get_sym_table_entry(const std::string &name)
 {
   /* only start checking at the current scope, not the most nested scope */
   for (int cur_index = m_table_level; cur_index >= 0; cur_index--)
@@ -71,13 +81,13 @@ std::optional<int> Function_symbol_table::get_var_offset(std::string name)
     auto &table = m_chained_sym_table.at(cur_index);
     if (table.count(name) == 1)
     {
-      return {std::get<2>(table.at(name))};
+      return table.at(name);
     }
   }
 
   if (m_func_arg_table.count(name) >= 1)
   {
-    return {std::get<2>(m_func_arg_table.at(name))};
+    return m_func_arg_table.at(name);
   }
 
   return std::nullopt;

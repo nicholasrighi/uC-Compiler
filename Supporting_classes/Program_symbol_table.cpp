@@ -4,55 +4,64 @@
 /*  Implements */
 #include "Program_symbol_table.h"
 
-Program_symbol_table::Program_symbol_table(std::ofstream& debug_file) 
-: m_debug_file(debug_file), m_cur_func_iter(m_function_sym_table.end()), m_global_sym_table(debug_file)
+Program_symbol_table::Program_symbol_table(std::ofstream &debug_file)
+    : m_debug_file(debug_file), m_cur_func_iter(m_function_sym_table.end()), m_global_sym_table(debug_file)
 {
 }
 
-std::optional<Var_dec *> Program_symbol_table::get_var_dec(std::string var_name)
+std::optional<Var_dec *> Program_symbol_table::get_var_dec(const std::string &var_name)
 {
-
-  /*  No functions have been added to the symbol table, only search global symbol table */
-  if (m_cur_func_iter == m_function_sym_table.end())
+  std::optional<sym_table_entry> entry = get_sym_table_entry(var_name);
+  if (entry.has_value())
   {
-    return m_global_sym_table.get_var_dec(var_name);
+    return std::get<0>(entry.value());
   }
-
-  /*  
-    Return var dec for current function table if that variable is declared 
-    inside that function 
-  */
-  if (m_cur_func_iter->second.get_var_dec(var_name))
-  {
-    return m_cur_func_iter->second.get_var_dec(var_name);
-  }
-
-  /*  Otherwise return the global var dec */
-  return m_global_sym_table.get_var_dec(var_name);
+  return std::nullopt;
 }
 
-std::optional<int> Program_symbol_table::get_var_offset(std::string var_name)
+std::optional<Var_storage> Program_symbol_table::get_var_storage(const std::string &var_name)
+{
+  std::optional<sym_table_entry> entry = get_sym_table_entry(var_name);
+  if (entry.has_value())
+  {
+    return std::get<1>(entry.value());
+  }
+  return std::nullopt;
+}
+
+std::optional<int> Program_symbol_table::get_var_offset(const std::string &var_name)
+{
+  std::optional<sym_table_entry> entry = get_sym_table_entry(var_name);
+  if (entry.has_value())
+  {
+    return std::get<2>(entry.value());
+  }
+  return std::nullopt;
+}
+
+std::optional<sym_table_entry> Program_symbol_table::get_sym_table_entry(const std::string &name)
 {
   /*  No current function specified, only search global symbol table */
   if (m_cur_func_iter == m_function_sym_table.end())
   {
-    return m_global_sym_table.get_var_offset(var_name);
+    return m_global_sym_table.get_sym_table_entry(name);
   }
 
   /*  
       Return var offset for current function table if that variable is declared 
       inside that function 
   */
-  if (m_cur_func_iter->second.get_var_offset(var_name))
+  if (m_cur_func_iter->second.get_sym_table_entry(name))
   {
-    return m_cur_func_iter->second.get_var_offset(var_name);
+    return m_cur_func_iter->second.get_sym_table_entry(name);
   }
 
   /*  Otherwise return the global var dec */
-  return m_global_sym_table.get_var_offset(var_name);
+  return m_global_sym_table.get_sym_table_entry(name);
 }
 
-int Program_symbol_table::get_cur_func_rsp_offset() {
+int Program_symbol_table::get_cur_func_rsp_offset()
+{
   return m_cur_func_iter->second.get_rsp_offset();
 }
 
@@ -117,7 +126,8 @@ void Program_symbol_table::add_scope_to_cur_func_sym_table()
   m_cur_func_iter->second.add_scope();
 }
 
-bool Program_symbol_table::increment_scope_of_cur_fun_sym_table() {
+bool Program_symbol_table::increment_scope_of_cur_fun_sym_table()
+{
   if (m_cur_func_iter == m_function_sym_table.end())
   {
     return false;
@@ -138,8 +148,10 @@ void Program_symbol_table::print_prog_sym_table()
   m_debug_file << std::endl;
 }
 
-std::vector<std::string> Program_symbol_table::get_cur_func_args() {
-  if (m_cur_func_iter != m_function_sym_table.end()) {
+std::vector<std::string> Program_symbol_table::get_cur_func_args()
+{
+  if (m_cur_func_iter != m_function_sym_table.end())
+  {
     return m_cur_func_iter->second.get_func_arg_names();
   }
   return std::vector<std::string>();

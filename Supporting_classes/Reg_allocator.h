@@ -59,8 +59,11 @@ class Reg_allocator
 public:
   /*  Creates a reg allocator that generates an assembly file with the specified
    * name */
-  Reg_allocator(std::string asm_file_name, std::ofstream &debug_log, Program_symbol_table &sym_table,
-                std::vector<std::vector<three_addr_code_entry>> &three_addr_code);
+  Reg_allocator(std::string asm_file_name,
+                std::ofstream &debug_log,
+                Program_symbol_table &sym_table,
+                std::vector<std::vector<three_addr_code_entry>> &three_addr_code,
+                std::vector<std::string>& global_vars);
 
   ~Reg_allocator();
 
@@ -71,6 +74,8 @@ public:
   void generate_asm_file();
 
 private:
+  void write_global_vars_to_asm();
+
   /*  adds regsiters currently in use to m_caller_saved_regs */
   void mark_in_use_regs();
 
@@ -264,4 +269,6 @@ private:
   int m_calling_vec_index = 0;
 
   const int m_last_reg_index = static_cast<int>(x86_Register::RDX);
+
+  std::vector<std::string>& m_global_vars;
 };

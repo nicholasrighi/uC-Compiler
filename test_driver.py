@@ -10,6 +10,8 @@ math_dir = "./math_test_files"
 bad_files = os.listdir(bad_dir)
 
 # Checks that all invalid uC programs fail to compile
+
+
 def check_bad_files_fail():
     for file_name in bad_files:
         result = subprocess.run(
@@ -60,6 +62,7 @@ def check_files(search_dir):
 
     return True
 
+
 def test_random_files():
     print("Cleaning random file dir")
     subprocess.run(["make", "clean", "-C", "./math_test_files"])
@@ -71,6 +74,7 @@ def test_random_files():
     subprocess.run(["make", "clean", "-C", "./math_test_files"])
     return ret_status
 
+
 def test_custom_files():
     print("Cleaning custom file dir")
     subprocess.run(["make", "clean", "-C", "./known_good_test_files"])
@@ -80,6 +84,7 @@ def test_custom_files():
     subprocess.run(["make", "clean", "-C", "./known_good_test_files"])
     return ret_status
 
+
 # Runs the testing functions
 if __name__ == "__main__":
     if (not test_custom_files()):
@@ -87,6 +92,6 @@ if __name__ == "__main__":
         exit(1)
     else:
         print("Success, custom tests passed")
-    if (not test_random_files()):
-        print("Error with random test file")
-        exit(1)
+    # if (not test_random_files()):
+    #    print("Error with random test file")
+    #    exit(1)

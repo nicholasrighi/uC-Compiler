@@ -16,15 +16,15 @@ Three_addr_var::Three_addr_var(std::string temp_var, Three_addr_var_type var_typ
       Returns the string representation of the stored variable or constant. If neither a 
       variable nor a string constant are defined, it returns an error message
   */
-std::string Three_addr_var::to_string() const
+const std::string Three_addr_var::to_string() const
 {
   if (m_var_type == Three_addr_var_type::CONSTANT)
   {
-    return std::to_string(*m_constant);
+    return std::to_string(m_constant.value());
   }
   else if (m_var_type != Three_addr_var_type::EMPTY)
   {
-    return *m_temp_var;
+    return m_temp_var.value();
   }
   else
   {

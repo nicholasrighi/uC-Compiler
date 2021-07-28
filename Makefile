@@ -6,7 +6,7 @@ CC=g++
 C_FLAGS=-Wall -Wpedantic -Wno-sign-compare -Wno-write-strings -std=c++17 -g 
 SAN_FLAGS=-ggdb -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -static-libstdc++ -static-libasan -lrt
 TEST_DIR=known_good_test_files
-TEST_FILE=simple_test.c
+TEST_FILE=global_var.c
 TEST_PATH=$(TEST_DIR)/$(TEST_FILE)
 
 .PHONY:test

@@ -17,7 +17,7 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use(Program_symbol_table& program_sym_table);
+  Dec_before_use(Program_symbol_table& program_sym_table, std::vector<std::string>& global_vars);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -55,4 +55,6 @@ private:
       symbol table for the global variables
   */
   Program_symbol_table& m_prog_sym_table;
+
+  std::vector<std::string>& m_global_vars;
 };

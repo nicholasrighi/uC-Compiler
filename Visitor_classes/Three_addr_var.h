@@ -33,7 +33,7 @@ public:
       Returns the string representation of the stored variable or constant. If neither a 
       variable nor a string constant are defined, it returns an error message
   */
-  std::string to_string() const;
+  const std::string to_string() const;
 
   /* determine if this object has valid state, which means it either holds a constant or a temporary variable name */
   bool is_valid() const;

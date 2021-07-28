@@ -31,17 +31,21 @@ public:
    */
    bool add_var(std::string name, Var_dec* var_dec, Var_storage var_storage);
 
+   std::optional<Var_storage> get_var_storage(const std::string& name);
+
    /* 
      Returns an optional containing the variable decleration of the specified variable. If the
      variable isn't defined, then the returned optional is false 
    */
-   std::optional<Var_dec *> get_var_dec(std::string name);
+   std::optional<Var_dec *> get_var_dec(const std::string& name);
 
    /*
       Returns an optional containing the variable's offset from the base pointer. If the 
       variable isn't in the symbol table, then the returned optional contains nothing
    */
-   std::optional<int> get_var_offset(std::string name);
+   std::optional<int> get_var_offset(const std::string& name);
+
+   std::optional<sym_table_entry> get_sym_table_entry(const std::string& name);
 
    /*
       Retruns the amount to shift the stack pointer down based on the offsets of the local variables

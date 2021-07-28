@@ -18,14 +18,21 @@ public:
       search target. Returns a pointer to Var_dec associated with that name if that variable is 
       found, otherwise returns nullopt 
   */
-    std::optional<Var_dec *> get_var_dec(std::string var_name);
+    std::optional<Var_dec *> get_var_dec(const std::string& var_name);
 
     /*
       Returns the offset of the variable associated with var_name, if that
       variable has been entered into the symbol table. Otherwise returns
       an empty optional
     */
-    std::optional<int> get_var_offset(std::string var_name);
+    std::optional<int> get_var_offset(const std::string& var_name);
+
+    /*  
+        Returns an optional containing the storage location of the specified variable in the symbol table
+        pointed to by m_cur_func_iter. If the specified variable isn't found in that symbol table, then
+        it returns an empty optional.
+    */
+    std::optional<Var_storage> get_var_storage(const std::string& var_name);
 
     /*    
         Returns the offest to subtract from the stack pointer based on the offsets of the local variables
@@ -91,6 +98,12 @@ public:
     std::vector<std::string> get_cur_func_args();
 
 private:
+    /*
+      Returns an optional containing the sym_table_entry for the specified variable in the symbol table
+      pointed to by m_cur_func_iter. If the specified variable isn't contained in that table, returns
+      an empty optional
+    */ 
+    std::optional<sym_table_entry> get_sym_table_entry(const std::string& name);
 
     std::ofstream& m_debug_file;
 

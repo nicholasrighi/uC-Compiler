@@ -48,14 +48,14 @@ std::string x86_Register_to_string(x86_Register reg)
   }
 }
 
-Reg_allocator::Reg_allocator(std::string asm_file_name, std::ofstream &debug_log,
+Reg_allocator::Reg_allocator(std::string asm_file_name, 
+                            std::ofstream &debug_log,
                              Program_symbol_table &sym_table,
-                             std::vector<std::vector<three_addr_code_entry>> &three_addr_code)
-    : m_debug_log(debug_log), m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code)
+                             std::vector<std::vector<three_addr_code_entry>> &three_addr_code,
+                             std::vector<std::string>& global_vars)
+    : m_debug_log(debug_log), m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code), m_global_vars(global_vars)
 {
   m_asm_file.open(asm_file_name, std::ofstream::trunc);
-
-  m_asm_file << ".globl main" << std::endl;
 
   m_register_free_status = std::vector<bool>(m_last_reg_index + 1, true);
 
@@ -78,6 +78,15 @@ Reg_allocator::~Reg_allocator()
 
 void Reg_allocator::generate_asm_file()
 {
+  m_asm_file << ".data" << std::endl;
+  for (std::string& var_name : m_global_vars) {
+    m_asm_file << var_name << ":" << std::endl;
+    m_asm_file << "\t.zero 8" << std::endl;
+  }
+
+  m_asm_file << ".text" << std::endl;
+  m_asm_file << ".globl main" << std::endl;
+
   m_debug_log << "\nStart of debug log for assembly\n"
               << std::endl;
   for (std::vector<three_addr_code_entry> &cur_IR_code : m_three_addr_code)
@@ -146,6 +155,9 @@ void Reg_allocator::print_register_contents()
   }
 
   m_debug_log << std::endl;
+}
+
+void Reg_allocator::write_global_vars_to_asm() {
 }
 
 void Reg_allocator::mark_in_use_regs()
@@ -851,10 +863,21 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
   /*  Load variable into register */
   if (var_to_be_allocated.is_scalar_var())
   {
+    std::optional<Var_storage> storage_location = m_prog_sym_table.get_var_storage(var_to_be_allocated.to_string());
+
     std::string source_reg_str = x86_Register_to_string(free_reg);
     std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
-    m_asm_file << "\tmov " << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
-    m_debug_log << "loading variable from offset " << var_offset_str << " into register " << source_reg_str << std::endl;
+
+    if (storage_location == Var_storage::GLOBAL)
+    {
+      m_asm_file << "\tmov " << var_to_be_allocated.to_string() << "(%rip), " << source_reg_str << std::endl;
+      m_debug_log << "loading global variable" << var_offset_str << " into register " << source_reg_str << std::endl;
+    }
+    else
+    {
+      m_asm_file << "\tmov " << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
+      m_debug_log << "loading variable from offset " << var_offset_str << " into register " << source_reg_str << std::endl;
+    }
   }
   else if (var_to_be_allocated.is_array())
   {
@@ -968,9 +991,21 @@ void Reg_allocator::store_reg(x86_Register reg_to_free)
   std::string source_reg_str = x86_Register_to_string(reg_to_free);
   std::string var_name = std::get<0>(m_allocated_reg_data.at(static_cast<int>(reg_to_free))).to_string();
   std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_name));
-  m_asm_file << "\tmov " << source_reg_str << ", " << var_offset_str << "(%rbp)" << std::endl;
-  m_debug_log << "storing variable " << var_name << " in live out set with offset " << var_offset_str
-              << std::endl;
+
+  Var_storage storage_location = m_prog_sym_table.get_var_storage(var_name).value();
+
+  if (storage_location == Var_storage::GLOBAL)
+  {
+    m_asm_file << "\tmov " << source_reg_str << ", " << var_name << "(%rip)" << std::endl;
+    m_debug_log << "storing global variable " << var_name << " in live out set" << std::endl;
+  }
+  /*  Both local and register variables are stored relative to %rbp offest */
+  else
+  {
+    m_asm_file << "\tmov " << source_reg_str << ", " << var_offset_str << "(%rbp)" << std::endl;
+    m_debug_log << "storing variable " << var_name << " in live out set with offset " << var_offset_str
+                << std::endl;
+  }
 }
 
 std::optional<x86_Register> Reg_allocator::find_allocated_var(const Three_addr_var &var_to_be_allocated)
@@ -1017,10 +1052,12 @@ int Reg_allocator::get_var_offset_cond_add(std::string var_name)
 {
   std::optional<int> var_offset = m_prog_sym_table.get_var_offset(var_name);
 
+  /*
   if (!var_offset)
   {
     m_prog_sym_table.add_local_var(var_name, nullptr);
     return m_prog_sym_table.get_var_offset(var_name).value();
   }
+  */
   return var_offset.value();
 }
