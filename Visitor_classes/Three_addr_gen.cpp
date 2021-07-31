@@ -639,8 +639,16 @@ void Three_addr_gen::dispatch(While_dec &node)
   m_child_is_conditional = false;
   node.m_cond->accept(*this);
 
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, body_label, Three_addr_var()));
+  if (m_child_is_conditional)
+  {
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, body_label, Three_addr_var()));
+  }
+  else
+  {
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), m_last_entry));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, body_label, Three_addr_var()));
+  }
 }
 
 std::string three_op_to_string(Three_addr_OP op)

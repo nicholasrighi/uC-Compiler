@@ -71,7 +71,6 @@ def test_random_files():
     subprocess.run(["make", "-j5", "-C", "./math_test_files"])
     print("Checking that outputs match")
     ret_status = check_files(math_dir)
-    subprocess.run(["make", "clean", "-C", "./math_test_files"])
     return ret_status
 
 
@@ -81,7 +80,6 @@ def test_custom_files():
     print("Compiling custom files\n")
     subprocess.run(["make", "-j5", "-C", "./known_good_test_files"])
     ret_status = check_files(good_dir)
-    subprocess.run(["make", "clean", "-C", "./known_good_test_files"])
     return ret_status
 
 
