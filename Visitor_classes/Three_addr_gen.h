@@ -137,4 +137,7 @@ private:
 
   /*  Always load an array value except when an array is on the left hand side of an "=" operator */
   bool m_load_array_value = true;
+
+  /*  Used to determine how to evaulate if an expression has a true of false truth value */
+  bool m_child_is_conditional = false;
 };

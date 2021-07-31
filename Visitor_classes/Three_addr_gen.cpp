@@ -319,6 +319,7 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   /*  || and && handled before the RHS of the expression is evaulated to guarantee short circuit evaluation */
   if (node.m_op == "||")
   {
+    m_child_is_conditional = true;
     Three_addr_var either_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
     Three_addr_var neither_arg_is_one = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
     Three_addr_var return_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
@@ -340,6 +341,7 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   }
   else if (node.m_op == "&&")
   {
+    m_child_is_conditional = true;
     Three_addr_var either_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
     Three_addr_var neither_arg_is_zero = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
     Three_addr_var result_temp = gen_temp();
@@ -396,21 +398,25 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   }
   else if (node.m_op == "<")
   {
+    m_child_is_conditional = true;
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.back().push_back(std::make_tuple(m_last_entry, Three_addr_OP::LESS_THAN, left_temp, right_temp));
   }
   else if (node.m_op == "<=")
   {
+    m_child_is_conditional = true;
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.back().push_back(std::make_tuple(m_last_entry, Three_addr_OP::LESS_THAN_EQUAL, left_temp, right_temp));
   }
   else if (node.m_op == ">")
   {
+    m_child_is_conditional = true;
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.back().push_back(std::make_tuple(m_last_entry, Three_addr_OP::GREATER_THAN, left_temp, right_temp));
   }
   else if (node.m_op == ">=")
   {
+    m_child_is_conditional = true;
     m_last_entry = Three_addr_var(gen_temp());
     m_intermediate_rep.back().push_back(std::make_tuple(m_last_entry, Three_addr_OP::GREATER_THAN_EQUAL, left_temp, right_temp));
   }
@@ -433,12 +439,14 @@ void Three_addr_gen::dispatch(Binop_dec &node)
   }
   else if (node.m_op == "==")
   {
+    m_child_is_conditional = true;
     Three_addr_var new_temp = gen_temp();
     m_intermediate_rep.back().push_back(std::make_tuple(new_temp, Three_addr_OP::EQUALITY, left_temp, right_temp));
     m_last_entry = new_temp;
   }
   else if (node.m_op == "!=")
   {
+    m_child_is_conditional = true;
     Three_addr_var new_temp = gen_temp();
     m_intermediate_rep.back().push_back(std::make_tuple(new_temp, Three_addr_OP::NOT_EQUALITY, left_temp, right_temp));
     m_last_entry = new_temp;
@@ -465,8 +473,8 @@ void Three_addr_gen::dispatch(Func_dec &node)
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
 
   /*  Ensures void functions return correctly */
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var())); 
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, Three_addr_var(), Three_addr_var())); 
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var()));
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, Three_addr_var(), Three_addr_var()));
 
   /*  Remove unreachable instructions, delete unused labels, merge adjacent labels together */
   remove_op_trailing_return();
@@ -514,14 +522,24 @@ void Three_addr_gen::dispatch(Func_ref &node)
 
 void Three_addr_gen::dispatch(If_dec &node)
 {
+  m_child_is_conditional = false;
+
   node.m_cond->accept(*this);
 
   Three_addr_var if_false_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
   Three_addr_var end_of_if_label = Three_addr_var(gen_label(), Three_addr_var_type::LABEL);
 
-  /* Drop through condition is taken if condition evaluates to 1, otherwise jump to false part of if/else statement */
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, if_false_label, Three_addr_var()));
+  if (m_child_is_conditional)
+  {
+    /* Drop through condition is taken if condition evaluates to 1, otherwise jump to false part of if/else statement */
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::NEQUAL_J, if_false_label, Three_addr_var()));
+  }
+  else
+  {
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(0), m_last_entry));
+    m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::EQUAL_J, if_false_label, Three_addr_var()));
+  }
 
   /* Insert instructions corresponding to condition being true */
   if (node.m_stmt_if_true != nullptr)
@@ -618,6 +636,7 @@ void Three_addr_gen::dispatch(While_dec &node)
 
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::LABEL, condition_label, Three_addr_var()));
 
+  m_child_is_conditional = false;
   node.m_cond->accept(*this);
 
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::CMP, Three_addr_var(1), m_last_entry));
