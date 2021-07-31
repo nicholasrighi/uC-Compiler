@@ -6,7 +6,7 @@ CC=g++
 C_FLAGS=-Wall -Wpedantic -Wno-sign-compare -Wno-write-strings -std=c++17 -g 
 SAN_FLAGS=-ggdb -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -static-libstdc++ -static-libasan -lrt
 TEST_DIR=known_good_test_files
-TEST_FILE=global_var.c
+TEST_FILE=simple_test.c
 TEST_PATH=$(TEST_DIR)/$(TEST_FILE)
 
 .PHONY:test
@@ -24,7 +24,7 @@ debug: $(PARSER_FILE).l $(GRAMMAR_FILE).y
 test:
 	./compiler -sf $(TEST_PATH) -o asm.s 
 	gcc -g asm.s -o test
-	gcc -Wall $(TEST_PATH) -g -o test2
+	gcc -O0 -Wall -g $(TEST_PATH) -o test2
 
 clean:
 	-rm *.tab* $(EXE_NAME) *.yy.c* *.output* test *.s debug_log.txt

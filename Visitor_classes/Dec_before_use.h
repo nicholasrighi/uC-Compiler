@@ -1,7 +1,7 @@
 #pragma once
 
 // System includes
-#include <list>
+#include <optional>
 
 // Inherits from
 #include "Abstract_visitor.h"
@@ -17,7 +17,8 @@ public:
      during AST traversal. This will then result in parse_status() returning false, allowing
      the caller to determine the input file is invalid
   */
-  Dec_before_use(Program_symbol_table& program_sym_table, std::vector<std::string>& global_vars);
+  Dec_before_use(Program_symbol_table &program_sym_table,
+                                 std::vector<std::pair<std::string, std::optional<int>>> &globals_vars);
 
   void dispatch(Array_access &node) override;
   void dispatch(Array_dec &node) override;
@@ -37,7 +38,6 @@ public:
   bool parse_status();
 
 private:
-
   /* 
       holds the status of the parser (true if parser sucess or if no parse has been run, 
       false if failure)
@@ -54,7 +54,7 @@ private:
       each entry in the list is the symbol table for a seperate function. The first entry in the list is the 
       symbol table for the global variables
   */
-  Program_symbol_table& m_prog_sym_table;
+  Program_symbol_table &m_prog_sym_table;
 
-  std::vector<std::string>& m_global_vars;
+  std::vector<std::pair<std::string, std::optional<int>>> &m_global_vars;
 };

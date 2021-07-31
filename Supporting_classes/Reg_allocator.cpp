@@ -48,11 +48,11 @@ std::string x86_Register_to_string(x86_Register reg)
   }
 }
 
-Reg_allocator::Reg_allocator(std::string asm_file_name, 
-                            std::ofstream &debug_log,
+Reg_allocator::Reg_allocator(std::string asm_file_name,
+                             std::ofstream &debug_log,
                              Program_symbol_table &sym_table,
                              std::vector<std::vector<three_addr_code_entry>> &three_addr_code,
-                             std::vector<std::string>& global_vars)
+                             std::vector<std::pair<std::string, std::optional<int>>> &global_vars)
     : m_debug_log(debug_log), m_prog_sym_table(sym_table), m_three_addr_code(three_addr_code), m_global_vars(global_vars)
 {
   m_asm_file.open(asm_file_name, std::ofstream::trunc);
@@ -79,9 +79,17 @@ Reg_allocator::~Reg_allocator()
 void Reg_allocator::generate_asm_file()
 {
   m_asm_file << ".data" << std::endl;
-  for (std::string& var_name : m_global_vars) {
-    m_asm_file << var_name << ":" << std::endl;
-    m_asm_file << "\t.zero 8" << std::endl;
+  for (std::pair<std::string, std::optional<int>> &cur_var : m_global_vars)
+  {
+    m_asm_file << cur_var.first << ":" << std::endl;
+    if (cur_var.second.has_value())
+    {
+      m_asm_file << "\t.zero " << std::to_string(cur_var.second.value() * 8) << std::endl;
+    }
+    else
+    {
+      m_asm_file << "\t.zero 8" << std::endl;
+    }
   }
 
   m_asm_file << ".text" << std::endl;
@@ -104,15 +112,12 @@ void Reg_allocator::generate_asm_file()
           correct values are loaded from memory, regardless of where the 
           control flow was before the current basic block
       */
+      reset_registers();
       auto &CFG_node = m_cfg_graph.at(i);
       if (i == 0)
       {
         m_calling_vec_index = 0;
         setup_initial_regs(CFG_node.first, cur_IR_code);
-      }
-      else
-      {
-        reset_registers();
       }
 
       if (!CFG_node.second)
@@ -157,7 +162,8 @@ void Reg_allocator::print_register_contents()
   m_debug_log << std::endl;
 }
 
-void Reg_allocator::write_global_vars_to_asm() {
+void Reg_allocator::write_global_vars_to_asm()
+{
 }
 
 void Reg_allocator::mark_in_use_regs()
@@ -860,14 +866,19 @@ std::optional<x86_Register> Reg_allocator::ensure(const Three_addr_var &var_to_b
 void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Register free_reg)
 {
 
+  std::optional<Var_storage> storage_location = m_prog_sym_table.get_var_storage(var_to_be_allocated.to_string());
+
+  std::string source_reg_str = x86_Register_to_string(free_reg);
+
+  std::string var_offset_str = "Error, var_offset not init";
+  if (var_to_be_allocated.is_scalar_var() || var_to_be_allocated.is_array())
+  {
+    var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
+  }
+
   /*  Load variable into register */
   if (var_to_be_allocated.is_scalar_var())
   {
-    std::optional<Var_storage> storage_location = m_prog_sym_table.get_var_storage(var_to_be_allocated.to_string());
-
-    std::string source_reg_str = x86_Register_to_string(free_reg);
-    std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
-
     if (storage_location == Var_storage::GLOBAL)
     {
       m_asm_file << "\tmov " << var_to_be_allocated.to_string() << "(%rip), " << source_reg_str << std::endl;
@@ -886,15 +897,16 @@ void Reg_allocator::load_reg(const Three_addr_var &var_to_be_allocated, x86_Regi
     /*  If array is a function arg, load base addr from memory into register */
     if (find(func_args.begin(), func_args.end(), var_to_be_allocated.to_string()) != func_args.end())
     {
-      std::string source_reg_str = x86_Register_to_string(free_reg);
-      std::string var_offset_str = std::to_string(get_var_offset_cond_add(var_to_be_allocated.to_string()));
       m_asm_file << "\tmov " << var_offset_str << "(%rbp), " << source_reg_str << std::endl;
+    }
+    else if (storage_location == Var_storage::GLOBAL)
+    {
+      m_asm_file << "\tlea " << var_to_be_allocated.to_string() << "(%rip), " << source_reg_str << std::endl;
+      m_debug_log << "loading global variable" << var_offset_str << " into register " << source_reg_str << std::endl;
     }
     /*  If array isn't a function arg, calculate base addr using offset from %rbp */
     else
     {
-      std::string var_offset_str =
-          std::to_string(m_prog_sym_table.get_var_offset(var_to_be_allocated.to_string()).value());
       m_asm_file << "\tmov %rbp, " << x86_Register_to_string(free_reg) << std::endl;
       m_asm_file << "\tadd $" << var_offset_str << ", " << x86_Register_to_string(free_reg) << std::endl;
     }
@@ -1052,12 +1064,5 @@ int Reg_allocator::get_var_offset_cond_add(std::string var_name)
 {
   std::optional<int> var_offset = m_prog_sym_table.get_var_offset(var_name);
 
-  /*
-  if (!var_offset)
-  {
-    m_prog_sym_table.add_local_var(var_name, nullptr);
-    return m_prog_sym_table.get_var_offset(var_name).value();
-  }
-  */
   return var_offset.value();
 }

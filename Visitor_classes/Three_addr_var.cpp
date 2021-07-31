@@ -81,6 +81,10 @@ bool Three_addr_var::operator==(const Three_addr_var &other) const
   {
     return other.is_scalar_var() && (m_temp_var == other.m_temp_var);
   }
+  else if (this->is_array())
+  {
+    return other.is_array() && (m_temp_var == other.m_temp_var);
+  }
   else
   {
     return !other.is_scalar_var() && (m_constant == other.m_constant);

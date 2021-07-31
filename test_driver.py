@@ -92,6 +92,6 @@ if __name__ == "__main__":
         exit(1)
     else:
         print("Success, custom tests passed")
-    # if (not test_random_files()):
+    #if (not test_random_files()):
     #    print("Error with random test file")
     #    exit(1)

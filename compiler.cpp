@@ -4,6 +4,7 @@
 /* System includes */
 #include <string>
 #include <fstream>
+#include <optional>
 
 /* Parser header */
 #include "grammar.tab.h"
@@ -102,7 +103,7 @@ int main(int argc, char **argv)
 
   std::vector<std::vector<three_addr_code_entry>> intermediate_code;
   std::ofstream debug_log(input_file_name + "_debug_log", std::ofstream::trunc);
-  std::vector<std::string> global_vars;
+  std::vector<std::pair<std::string,std::optional<int>>> global_vars;
 
   Program_symbol_table prog_sym_table(debug_log);
 

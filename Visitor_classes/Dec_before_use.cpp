@@ -20,7 +20,8 @@
 #include "../AST_classes/Var_ref.h"
 #include "../AST_classes/While_dec.h"
 
-Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table, std::vector<std::string> &globals_vars)
+Dec_before_use::Dec_before_use(Program_symbol_table &program_sym_table,
+                               std::vector<std::pair<std::string, std::optional<int>>> &globals_vars)
     : m_prog_sym_table(program_sym_table), m_global_vars(globals_vars)
 {
 }
@@ -55,6 +56,7 @@ void Dec_before_use::dispatch(Array_dec &node)
             std::cout << "Redeclared global variable " << node.get_name() << std::endl;
             m_parse_flag = false;
         }
+        m_global_vars.push_back(std::pair(node.get_name(), node.m_array_size));
     }
     else if (m_func_args)
     {
@@ -216,7 +218,7 @@ void Dec_before_use::dispatch(Var_dec &node)
             std::cout << "Redeclared global variable " << node.get_name() << std::endl;
             m_parse_flag = false;
         }
-        m_global_vars.push_back(node.get_name());
+        m_global_vars.push_back(std::pair(node.get_name(), std::nullopt));
     }
     else if (m_func_args)
     {

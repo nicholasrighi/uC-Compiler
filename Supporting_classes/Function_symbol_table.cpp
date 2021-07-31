@@ -13,22 +13,10 @@ Function_symbol_table::Function_symbol_table(std::ofstream &debug_file) : m_debu
 
 bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_storage var_storage)
 {
-  sym_table_entry sym_entry(var_dec, var_storage, m_local_var_offset);
-
   /*  Check that variable wasn't already declared in the current scope */
   if (m_chained_sym_table.at(m_table_level).count(name) >= 1 || m_func_arg_table.count(name) >= 1)
   {
     return false;
-  }
-
-  if (var_storage == Var_storage::REGISTER)
-  {
-    m_func_arg_table.insert({name, sym_entry});
-    m_func_arg_vec.insert(m_func_arg_vec.begin(), name);
-  }
-  else
-  {
-    m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
   }
 
   /*  If an array is declared in a function argument, we only need to store its address as a local variable */
@@ -40,6 +28,19 @@ bool Function_symbol_table::add_var(std::string name, Var_dec *var_dec, Var_stor
   {
     m_local_var_offset -= 8;
   }
+
+  sym_table_entry sym_entry(var_dec, var_storage, m_local_var_offset);
+
+  if (var_storage == Var_storage::REGISTER)
+  {
+    m_func_arg_table.insert({name, sym_entry});
+    m_func_arg_vec.insert(m_func_arg_vec.begin(), name);
+  }
+  else
+  {
+    m_chained_sym_table.at(m_table_level).insert({name, sym_entry});
+  }
+
   return true;
 }
 

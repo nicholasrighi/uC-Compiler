@@ -256,19 +256,13 @@ void Three_addr_gen::dispatch(Array_access &node)
   three_addr_code_entry scaled_access_inst =
       std::make_tuple(scaled_access_temp, Three_addr_OP::MULT, m_last_entry, Three_addr_var(8));
 
-  /*  Make address negative to handle offsets correctly */
-  Three_addr_var neg_access_temp(gen_temp());
-  three_addr_code_entry neg_access_inst =
-      std::make_tuple(neg_access_temp, Three_addr_OP::SUB, Three_addr_var(0), scaled_access_temp);
-
   /*  Calculate final address of value to load */
   Three_addr_var final_addr_temp(gen_temp());
   Three_addr_var array_addr(node.m_var->m_name, Three_addr_var_type::ARRAY);
   three_addr_code_entry final_addr_inst =
-      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, array_addr, neg_access_temp);
+      std::make_tuple(final_addr_temp, Three_addr_OP::ADD, array_addr, scaled_access_temp);
 
   m_intermediate_rep.back().push_back(scaled_access_inst);
-  m_intermediate_rep.back().push_back(neg_access_inst);
   m_intermediate_rep.back().push_back(final_addr_inst);
 
   m_last_entry = final_addr_temp;
@@ -467,6 +461,10 @@ void Three_addr_gen::dispatch(Func_dec &node)
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_DEC, Three_addr_var(), Three_addr_var()));
 
   node.m_func_body->accept(*this);
+
+  /*  Ensures void functions return correctly
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, Three_addr_var(), Three_addr_var())); 
+  */
 
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
 

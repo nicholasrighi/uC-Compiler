@@ -1,19 +1,15 @@
 int y;
-int z;
-int h;
 int main(void)
 {
-  int x;
-  x = 2;
-  h = 2;
-  z = 4;
-  y = 17;
-  if (x == 3)
+  int x[3];
+  y = 2;
+  if (y == 2)
   {
-    return y * z * x * h;
+    x[y] = 31;
   }
   else
   {
-    return y + z - x * h;
+    x[y] = 17;
   }
+  return x[y];
 }

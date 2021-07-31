@@ -63,7 +63,7 @@ public:
                 std::ofstream &debug_log,
                 Program_symbol_table &sym_table,
                 std::vector<std::vector<three_addr_code_entry>> &three_addr_code,
-                std::vector<std::string>& global_vars);
+                std::vector<std::pair<std::string, std::optional<int>>>& global_vars);
 
   ~Reg_allocator();
 
@@ -270,5 +270,5 @@ private:
 
   const int m_last_reg_index = static_cast<int>(x86_Register::RDX);
 
-  std::vector<std::string>& m_global_vars;
+  std::vector<std::pair<std::string, std::optional<int>>>& m_global_vars;
 };

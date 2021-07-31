@@ -108,7 +108,7 @@ private:
       The offset that the next local variable will be given when added to the symbol table 
       This value isn't used if the function_symbol_table is holding global variables
    */
-   int m_local_var_offset = -8;
+   int m_local_var_offset = 0;
 
    int m_func_args_offset = 0;
 };
