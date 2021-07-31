@@ -462,11 +462,11 @@ void Three_addr_gen::dispatch(Func_dec &node)
 
   node.m_func_body->accept(*this);
 
-  /*  Ensures void functions return correctly
-  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, Three_addr_var(), Three_addr_var())); 
-  */
-
   m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::BACK_PATCH_INC, Three_addr_var(), Three_addr_var()));
+
+  /*  Ensures void functions return correctly */
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RAW_STR, Three_addr_var("pop %rbp", Three_addr_var_type::RAW_STR), Three_addr_var())); 
+  m_intermediate_rep.back().push_back(std::make_tuple(Three_addr_var(), Three_addr_OP::RET, Three_addr_var(), Three_addr_var())); 
 
   /*  Remove unreachable instructions, delete unused labels, merge adjacent labels together */
   remove_op_trailing_return();
